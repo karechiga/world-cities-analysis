@@ -11,10 +11,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+import os
 
 # Reading in the example .shp file with geopandas.
 # Data obtained from https://catalog.data.gov/dataset/500-cities-city-boundaries
-gdf = gpd.read_file('..\city-boundaries\\ne_10m_urban_areas_landscan.shp')
+gdf = gpd.read_file('..\\..\\city-boundaries\\ne_10m_urban_areas_landscan.shp')
 gdf = gdf.to_crs('epsg:4326') # converts to lat/long coords
 # x1, y1 = gdf.iloc[400].geometry.exterior.xy # defined boundaries for city
 # plt.plot(x1,y1) # can plot the boundaries
@@ -24,7 +25,7 @@ gdf = gdf.to_crs('epsg:4326') # converts to lat/long coords
 # some elements are "MultiPolygons", that have multiple Polygons.
 
 cities = pd.DataFrame({'City' : gdf['name_conve']})
-data_path = '...\\datasets\\'
+data_path = '..\\..\\datasets\\'
 
 # get data for all cities.
 df = etd.worldclimCityData(gdf.geometry)

@@ -82,7 +82,7 @@ def worldclimCityData(poly_list):
     Writes the mean features for each city to csv.
     """
     # WorldClim .tif files downloaded from https://worldclim.org/data/worldclim21.html and placed within the following path:
-    data_path = '...\\datasets\\WorldClim\\'
+    data_path = '..\\..\\datasets\\WorldClim\\'
     # Read the .tif files, store in a dataframe, store location resolutions
     df = tifToDF(data_path)
     long_res = (np.unique(df['Longitude']).max() - np.unique(df['Longitude']).min())/(len(np.unique(df['Longitude']))-1)
@@ -127,7 +127,7 @@ def paleoclimCityData(poly_list):
     Writes the mean features for each city to csv.
     """
     # paleoclim data files downloaded from http://www.paleoclim.org/. Files placed into the data_path below:
-    data_path = '...\\datasets\\paleoclim\\'
+    data_path = '..\\..\\datasets\\paleoclim\\'
     # Read the .tif files, store in a dataframe, store location resolutions
     df = tifToDF(data_path)
     long_res = (np.unique(df['Longitude']).max() - np.unique(df['Longitude']).min())/(len(np.unique(df['Longitude']))-1)
@@ -172,7 +172,7 @@ def landscanCityData(gdf_list):
     Writes the mean features for each city to csv.
     """
     # landscan data files downloaded from https://landscan.ornl.gov/. Files placed into the data_path below:
-    data_path = '...\\datasets\\landscan\\'
+    data_path = '..\\..\\datasets\\landscan\\'
     # Read the .tif files, store in a dataframe, store location resolutions
     df = tifToDF(data_path)
     long_res = (np.unique(df['Longitude']).max() - np.unique(df['Longitude']).min())/(len(np.unique(df['Longitude']))-1)
