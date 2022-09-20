@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 import os
+import time
 
 # Reading in the example .shp file with geopandas.
 # Data obtained from https://catalog.data.gov/dataset/500-cities-city-boundaries
@@ -26,16 +27,23 @@ gdf = gdf.to_crs('epsg:4326') # converts to lat/long coords
 
 cities = pd.DataFrame({'City' : gdf['name_conve']})
 data_path = '..\\..\\datasets\\'
-
+os.makedirs(data_path + 'csv_data', exist_ok=True)
 # get data for all cities.
-df = etd.worldclimCityData(gdf.geometry)
-df = pd.merge(cities,df,left_index=True,right_index=True)
-df.to_csv(data_path + 'csv_data\\worldclim_cities.csv',index=False)
+start = time.time()
+# df = etd.worldclimCityData(gdf.geometry)
+# df = pd.merge(cities,df,left_index=True,right_index=True)
+# df.to_csv(data_path + 'csv_data\\worldclim_cities.csv',index=False)
+wctime = time.time()
+print("WorldClim datset to csv complete: " + str(wctime-start) + " seconds\n")
 
-df = etd.paleoclimCityData(gdf.geometry)
-df = pd.merge(cities,df,left_index=True,right_index=True)
-df.to_csv(data_path + 'csv_data\\paleoclim_cities.csv',index=False)
+# df = etd.paleoclimCityData(gdf.geometry)
+# df = pd.merge(cities,df,left_index=True,right_index=True)
+# df.to_csv(data_path + 'csv_data\\paleoclim_cities.csv',index=False)
+pctime = time.time()
+print("PaleoClim datset to csv complete: " + str(pctime-wctime) + " seconds\n")
 
 df = etd.landscanCityData(gdf.geometry)
 df = pd.merge(cities,df,left_index=True,right_index=True)
 df.to_csv(data_path + 'csv_data\\landscan_cities.csv',index=False)
+lstime = time.time()
+print("Landscan datset to csv complete: " + str(lstime-pctime) + " seconds\n")
