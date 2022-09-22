@@ -18,27 +18,22 @@ import time
 # Data obtained from https://catalog.data.gov/dataset/500-cities-city-boundaries
 gdf = gpd.read_file('..\\..\\city-boundaries\\ne_10m_urban_areas_landscan.shp')
 gdf = gdf.to_crs('epsg:4326') # converts to lat/long coords
-# x1, y1 = gdf.iloc[400].geometry.exterior.xy # defined boundaries for city
-# plt.plot(x1,y1) # can plot the boundaries
-# plt.show()
-# gdf.iloc[400].geometry.contains(Point(-0.06+-1.182e2, 33.84))
-# tells if a point is in a city.
-# some elements are "MultiPolygons", that have multiple Polygons.
+
 
 cities = pd.DataFrame({'City' : gdf['name_conve']})
 data_path = '..\\..\\datasets\\'
 os.makedirs(data_path + 'csv_data', exist_ok=True)
 # get data for all cities.
 start = time.time()
-# df = etd.worldclimCityData(gdf.geometry)
+# df = etd.worldclimCityData(gdf)
 # df = pd.merge(cities,df,left_index=True,right_index=True)
 # df.to_csv(data_path + 'csv_data\\worldclim_cities.csv',index=False)
 wctime = time.time()
 print("WorldClim datset to csv complete: " + str(wctime-start) + " seconds\n")
 
-# df = etd.paleoclimCityData(gdf.geometry)
-# df = pd.merge(cities,df,left_index=True,right_index=True)
-# df.to_csv(data_path + 'csv_data\\paleoclim_cities.csv',index=False)
+df = etd.paleoclimCityData(gdf)
+df = pd.merge(cities,df,left_index=True,right_index=True)
+df.to_csv(data_path + 'csv_data\\paleoclim_cities.csv',index=False)
 pctime = time.time()
 print("PaleoClim datset to csv complete: " + str(pctime-wctime) + " seconds\n")
 
