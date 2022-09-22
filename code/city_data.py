@@ -42,7 +42,7 @@ print("WorldClim datset to csv complete: " + str(wctime-start) + " seconds\n")
 pctime = time.time()
 print("PaleoClim datset to csv complete: " + str(pctime-wctime) + " seconds\n")
 
-df = etd.landscanCityData(gdf.geometry)
+df = etd.landscanCityData(gdf)
 df = pd.merge(cities,df,left_index=True,right_index=True)
 df.to_csv(data_path + 'csv_data\\landscan_cities.csv',index=False)
 lstime = time.time()

@@ -40,6 +40,20 @@ def convertIndexToLat(y_ind_arr, rast):
     lat_arr = uly + (y_ind_arr * yres)
     return lat_arr
 
+def convertLongToIndex(long_arr, rast):
+    # input is a longitude or array of longitudes, and the raster dataset object
+    # output is an array of x indices for the raster file.
+    ulx, xres, xskew, uly, yskew, yres  = rast.GetGeoTransform()    
+    x_arr = np.floor((long_arr - ulx) / xres)
+    return x_arr
+
+def convertLatToIndex(lat_arr, rast):
+    # input is a latitude or array of latitudes, and the raster dataset object
+    # output is an array of y indices for the raster file.
+    ulx, xres, xskew, uly, yskew, yres  = rast.GetGeoTransform()        
+    y_arr = np.floor((lat_arr - uly) / yres)
+    return y_arr
+
 def openTifsInDirectory(data_path):
     # Reads all .tif files within a directory and returns a list of gdf objects
     # Also returns a list of the names of the files.
@@ -55,6 +69,8 @@ def openTifsInDirectory(data_path):
 def tifsToDF(tifs, chunkx = 0, chunky = 0, offsetx = 0, offsety = 0):
     # Stores list of "tifs" (gdal objects representing read .tif files) in a pandas DataFrame
     # Optionally data can be stored in a DataFrame in chunks (for large datasets)
+    # NOTE: This function assumes that all the tifs have the same dimensions!
+    # If they have different Raster sizes, the data will not be aggregated correctly.
     for tif in tifs:
         # If the file is large, the following will only read the specified "chunk" of the data
         cols = tif.RasterXSize
@@ -75,6 +91,9 @@ def tifsToDF(tifs, chunkx = 0, chunky = 0, offsetx = 0, offsety = 0):
         break
     for i in range(1,len(tifs)):   # Starting with the second file since the first was already added to the df
         # NOTE: The following assumes that each .tif file in the data_path has the same dimensions
+        if tifs[i].RasterYSize != rows or tifs[i].RasterYSize != cols:
+            print(".tif file #{} has different dimensions. Make sure all tifs input into this function have the same dimensions.".format(i+1))
+            return 0
         arr = tifs[i].ReadAsArray(offsetx, offsety, x_range, y_range).flatten()
         df[i] = arr
     return df
@@ -181,92 +200,90 @@ def paleoclimCityData(poly_list):
     city_arr = city_arr_t.T
     return pd.DataFrame(city_arr,columns=cols)
 
-def landscanCityData(poly_list):
+def landscanCityData(gdf):
     """
-    This script reads in landscan .tif data and aggregates it into the sum value within each city.
+    This script reads in landscan .tif data from two different years, and aggregates it into the sum value within each city.
 
     Args:
-        poly_list (List of Polygons): represents the list of cities geometries.
-        Each element is a Polygon object.
-        
+        gdf (GeoDataFrame): represents the list of cities and their geometries.
     Writes the sum of populations for each city to csv.
     """
     start = time.time()
+    names =  gdf['name_conve'].values
+    poly_list = gdf.geometry
     # landscan data files downloaded from https://landscan.ornl.gov/. Files placed into the data_path below:
     data_path = '..\\..\\datasets\\landscan\\'
     # Read the .tif files, store in a dataframe, store location resolutions
     # for landscan, read in chunks (too much data to store all in a dataframe)
     
     tifs, file_names = openTifsInDirectory(data_path)
-    cols = file_names
-    cols.insert(0,'Longitude')
-    cols.insert(0,'Latitude')
-    cols.insert(0,'tif_count')
-    cols.append('Absolute_Change')
-    totalX = tifs[0].RasterXSize  # Number of columns in each .tif file (assumes all .tifs in the directory have the same dimensions)
-    totalY = tifs[0].RasterYSize  # Number of rows in each .tif file (assumes all .tifs in the directory have the same dimensions)
-    win_xsize = 12000    # Size of the chunks (x)
-    win_ysize = 6000    # Size of the chunks (y)
+    # NOTE: Landscan .tif files for 2000 and 2020 have different dimensions and must be aggregated separately
+    long_res = (tifs[0].GetGeoTransform()[1], tifs[1].GetGeoTransform()[1])
+    lat_res = (tifs[0].GetGeoTransform()[5], tifs[1].GetGeoTransform()[5])
+    cols = ['tif_count_2000', 'tif_count_2021', 'Latitude',
+            'Longitude', 'pop_2000', 'pop_2021', 'pop_change']
     city_arr = np.zeros((len(poly_list),len(cols))) # initializing the array to be returned at the end
-    count = 0
-    for r in range(0, totalY, win_ysize):
-        for c in range(0, totalX, win_xsize):
-            df = tifsToDF(tifs, chunkx=win_xsize, chunky=win_ysize, offsetx=c, offsety=r)   # stores only a chunk of the .tif data
-            long_res = (np.unique(df['Longitude']).max() - np.unique(df['Longitude']).min())/(len(np.unique(df['Longitude']))-1)
-            lat_res = (np.unique(df['Latitude']).max() - np.unique(df['Latitude']).min())/(len(np.unique(df['Latitude']))-1)
-            index_to_drop = df[(df[0] < 0) | (df[1] < 0)].index # Remove Rows that have negative numbers as population sizes.
-            df.drop(index_to_drop , inplace=True)
-            index_to_drop = df[(df[0] == 0) & (df[1] == 0)].index
-            df.drop(index_to_drop , inplace=True)
-            # This will significantly reduce computation time
-            new_time = time.time()
-            print("{} percent complete at ".format(count*win_xsize*win_ysize/(totalX*totalY)) + "{} seconds from the start of the landscan function.".format(new_time-start))
-            count += 1
-            for i, poly in enumerate(poly_list):
-                if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
-                    # p1x,p1y = poly.exterior.xy # for debugging
-                    temp_df = df[(df['Latitude'].between(poly.bounds[1], poly.bounds[3]+lat_res)) &
-                                (df['Longitude'].between(poly.bounds[0], poly.bounds[2]+long_res))]
-                    for index, point in temp_df.iterrows():
+    for i, poly in enumerate(poly_list):
+        old_time = time.time()
+        print("Starting to aggregate population data for city {} ({})".format(i,names[i]))
+        if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
+            p1x,p1y = poly.exterior.xy
+            plt.plot(p1x,p1y)
+            for j,t in enumerate(tifs): # iterating over both tifs because they have different dimensions.
+                # get only chunk of tif files that could be within city bounds
+                y_bounds = convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), t)
+                x_bounds = convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), t)
+                df = tifsToDF([t], chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
+                index_to_drop = df[(df[0] < 0)].index # Remove Rows that have negative numbers as population sizes.
+                df.drop(index_to_drop , inplace=True)
+                # This will reduce some computation time
+                plt.plot(df['Longitude'].values,df['Latitude'].values, '.')
+                for index, point in df.iterrows():
+                    x = point['Longitude']
+                    y = point['Latitude']
+                    temp_poly = Polygon([(x-long_res[j], y-lat_res[j]),   # Bottom left corner
+                                        (x, y-lat_res[j]),            # Bottom right corner
+                                        (x, y),                   # Top right corner
+                                        (x-long_res[j], y)])           # Top left corner
+                    if temp_poly.intersects(poly):   # if the data point is inside the city polygon
+                        # should consider adding by a percentage of the intersection of the polygon
+                        city_arr[i][j] += 1
+                        city_arr[i][2:4] = np.add(city_arr[i][2:4], point.values[0:2])
+                        city_arr[i][4+j] += point.values[2]
+        else:
+            # For cities represented as MultiPolygons, extract each polygon within them and evaluate
+            for p in poly.geoms:
+                for j,t in enumerate(tifs): # iterating over both tifs because they have different dimensions.
+                    # get only chunk of tif files that could be within city bounds
+                    y_bounds = convertLatToIndex(np.array([p.bounds[1], p.bounds[3]]), t)
+                    x_bounds = convertLongToIndex(np.array([p.bounds[0], p.bounds[2]]), t)
+                    df = tifsToDF([t], chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
+                    index_to_drop = df[(df[0] < 0)].index # Remove Rows that have negative numbers as population sizes.
+                    df.drop(index_to_drop , inplace=True)
+                    # This will reduce some computation time
+                    for index, point in df.iterrows():
                         x = point['Longitude']
                         y = point['Latitude']
-                        temp_poly = Polygon([(x-long_res, y-lat_res),   # Bottom left corner
-                                            (x, y-lat_res),            # Bottom right corner
+                        temp_poly = Polygon([(x-long_res[j], y-lat_res[j]),   # Bottom left corner
+                                            (x, y-lat_res[j]),            # Bottom right corner
                                             (x, y),                   # Top right corner
-                                            (x-long_res, y)])           # Top left corner
-                        # # For debugging below:
-                        # p2x,p2y = temp_poly.exterior.xy
-                        # plt.plot(p2x,p2y)
-                        # plt.plot(p1x,p1y)
-                        # plt.show()
-                        if temp_poly.intersects(poly):   # if the data point is inside the city polygon
+                                            (x-long_res[j], y)])           # Top left corner
+                        if temp_poly.intersects(p):   # if the data point is inside the city polygon
                             # should consider adding by a percentage of the intersection of the polygon
-                            city_arr[i][0] += 1
-                            city_arr[i][1:-1] = np.add(city_arr[i][1:-1], point.values)
-                else:
-                    # For cities represented as MultiPolygons, extract each polygon within them and evaluate
-                    for p in poly.geoms:
-                        # p1x,p1y = poly.exterior.xy # for debugging
-                        temp_df = df[(df['Latitude'].between(p.bounds[1], p.bounds[3]+lat_res)) &
-                                    (df['Longitude'].between(p.bounds[0], p.bounds[2]+long_res))]
-                        for index, point in temp_df.iterrows():
-                            x = point['Longitude']
-                            y = point['Latitude']
-                            temp_poly = Polygon([(x-long_res, y-lat_res),   # Bottom left corner
-                                                (x, y-lat_res),            # Bottom right corner
-                                                (x, y),                   # Top right corner
-                                                (x-long_res, y)])           # Top left corner
-                            # # For debugging below:
-                            # p2x,p2y = temp_poly.exterior.xy
-                            # plt.plot(p2x,p2y)
-                            # plt.plot(p1x,p1y)
-                            # plt.show()
-                            if temp_poly.intersects(p):   # if the data point is inside the city polygon
-                                # should consider adding by a percentage of the intersection of the polygon
-                                city_arr[i][0] += 1
-                                city_arr[i][1:-1] = np.add(city_arr[i][1:-1], point.values)
+                            city_arr[i][j] += 1
+                            city_arr[i][2:4] = np.add(city_arr[i][2:4], point.values[0:2])
+                            city_arr[i][4+j] += point.values[2]
+        # # For debugging below:
+        # plt.plot(df['Longitude'].values,df['Latitude'].values)
+        # p1x,p1y = poly.exterior.xy
+        # p2x,p2y = temp_poly.exterior.xy
+        # plt.plot(p2x,p2y)
+        # plt.plot(p1x,p1y)
+        # plt.show()
+        new_time = time.time()
+        print("City {} ({}) population data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
     city_arr_t = city_arr.T
-    city_arr_t[1:3] = city_arr_t[1:3] / city_arr_t[0]   # Averaging the latitude and longitude for each city
+    city_arr_t[2:4] = city_arr_t[2:4] / (city_arr_t[0]+city_arr_t[1])   # Averaging the latitude and longitude for each city
     city_arr_t[-1] = city_arr_t[-2] - city_arr_t[-3]    # Overall_Change calculation
     city_arr = city_arr_t.T
     return pd.DataFrame(city_arr,columns=cols)
