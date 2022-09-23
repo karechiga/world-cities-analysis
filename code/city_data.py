@@ -25,9 +25,9 @@ data_path = '..\\..\\datasets\\'
 os.makedirs(data_path + 'csv_data', exist_ok=True)
 # get data for all cities.
 start = time.time()
-# df = etd.worldclimCityData(gdf)
-# df = pd.merge(cities,df,left_index=True,right_index=True)
-# df.to_csv(data_path + 'csv_data\\worldclim_cities.csv',index=False)
+df = etd.worldclimCityData(gdf)
+df = pd.merge(cities,df,left_index=True,right_index=True)
+df.to_csv(data_path + 'csv_data\\worldclim_cities.csv',index=False)
 wctime = time.time()
 print("WorldClim datset to csv complete: " + str(wctime-start) + " seconds\n")
 

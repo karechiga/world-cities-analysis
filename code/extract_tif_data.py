@@ -30,7 +30,7 @@ def convertIndexToLong(x_ind_arr, rast):
     # input is an array of indices, and the raster dataset object
     # output is a linearly transformed array listing longitudes instead of indices
     ulx, xres, xskew, uly, yskew, yres  = rast.GetGeoTransform()    
-    long_arr = ulx + ((x_ind_arr+1) * xres)
+    long_arr = ulx + ((x_ind_arr) * xres)
     return long_arr
 
 def convertIndexToLat(y_ind_arr, rast):
@@ -45,6 +45,8 @@ def convertLongToIndex(long_arr, rast):
     # output is an array of x indices for the raster file.
     ulx, xres, xskew, uly, yskew, yres  = rast.GetGeoTransform()    
     x_arr = np.floor((long_arr - ulx) / xres)
+    # index 0 => longitude -180, index 1 => -179.9166666 and so on
+    # so if long = -179.95, then index will be 0
     return x_arr
 
 def convertLatToIndex(lat_arr, rast):
@@ -126,43 +128,58 @@ def worldclimCityData(gdf):
         old_time = time.time()
         print("Starting to aggregate WorldClim data for city {} ({})".format(i,names[i]))
         if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
+            if not poly.is_valid:
+                poly = poly.buffer(0)
             # get only chunk of tif files that could be within city bounds
             y_bounds = convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), tifs[0])
             x_bounds = convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), tifs[0])
             df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-            index_to_drop = df[(df < -3e30)].index # Remove Rows that have negative numbers as population sizes.
-            df.drop(index_to_drop , inplace=True)
+            df[(df < -3e30)] = None # Remove Rows that have negative numbers as population sizes.
+            df = df.dropna()
             for index, point in df.iterrows():
                 x = point['Longitude']
                 y = point['Latitude']
-                temp_poly = Polygon([(x-long_res, y-lat_res),   # Bottom left corner
-                                    (x, y-lat_res),            # Bottom right corner
-                                    (x, y),                   # Top right corner
-                                    (x-long_res, y)])           # Top left corner
+                temp_poly = Polygon([(x, y),                    # Top left corner
+                                    (x+long_res, y),            # Top right corner
+                                    (x+long_res, y+lat_res),    # Bottom right corner
+                                    (x, y+lat_res)])            # Bottom left corner
+                # FOR DEBUGGING BELOW
+                # x1,y1 = poly.exterior.xy
+                # x2,y2 = temp_poly.exterior.xy
+                # plt.plot(x1,y1)
+                # plt.plot(x2,y2)
+                # plt.plot(x,y,'.')
+                # plt.show()
                 if temp_poly.intersects(poly):   # if the data point is inside the city polygon
-                    # should consider adding by a percentage of the intersection of the polygon
-                    city_arr[i][0] += 1
-                    city_arr[i][1:] = np.add(city_arr[i][1:], point.values)
+                    # The following calculates the percentage of the tif point that intersects the city
+                    weight = temp_poly.intersection(poly).area / temp_poly.area
+                    city_arr[i][0] += weight
+                    # Increments by the intersection percentage weight
+                    city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
         else:
             # For cities represented as MultiPolygons, extract each polygon within them and evaluate
             for p in poly.geoms:
+                if not p.is_valid:
+                    p = p.buffer(0)
                 # get only chunk of tif files that could be within city bounds
                 y_bounds = convertLatToIndex(np.array([p.bounds[1], p.bounds[3]]), tifs[0])
                 x_bounds = convertLongToIndex(np.array([p.bounds[0], p.bounds[2]]), tifs[0])
                 df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-                index_to_drop = df[(df < -3e30)].index # Remove Rows that have negative numbers as population sizes.
-                df.drop(index_to_drop , inplace=True)
+                df[(df < -3e30)] = None # Remove Rows that have negative numbers as population sizes.
+                df = df.dropna()
                 for index, point in df.iterrows():
                     x = point['Longitude']
                     y = point['Latitude']
-                    temp_poly = Polygon([(x-long_res, y-lat_res),   # Bottom left corner
-                                        (x, y-lat_res),            # Bottom right corner
-                                        (x, y),                   # Top right corner
-                                        (x-long_res, y)])           # Top left corner
+                    temp_poly = Polygon([(x, y),                    # Top left corner
+                                        (x+long_res, y),            # Top right corner
+                                        (x+long_res, y+lat_res),    # Bottom right corner
+                                        (x, y+lat_res)])            # Bottom left corner
                     if temp_poly.intersects(p):   # if the data point is inside the city polygon
-                        # should consider adding by a percentage of the intersection of the polygon
-                        city_arr[i][0] += 1
-                        city_arr[i][1:] = np.add(city_arr[i][1:], point.values)
+                        # The following calculates the percentage of the tif point that intersects the city
+                        weight = temp_poly.intersection(p).area / temp_poly.area
+                        city_arr[i][0] += weight
+                        # Increments by the intersection percentage weight
+                        city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
         new_time = time.time()
         print("City {} ({}) WorldClim data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
     city_arr_t = city_arr.T
@@ -198,43 +215,57 @@ def paleoclimCityData(gdf):
         old_time = time.time()
         print("Starting to aggregate PaleoClim data for city {} ({})".format(i,names[i]))
         if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
+            if not poly.is_valid:
+                # x1,y1 = poly.exterior.xy
+                # plt.plot(x1,y1)
+                # plt.show()
+                poly = poly.buffer(0)
             # get only chunk of tif files that could be within city bounds
             y_bounds = convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), tifs[0])
             x_bounds = convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), tifs[0])
             df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-            index_to_drop = df[(df < -3e30)].index # Remove Rows that have negative numbers as population sizes.
-            df.drop(index_to_drop , inplace=True)
+            df[(df < -3e30)] = None # Remove Rows that have negative numbers as population sizes.
+            df = df.dropna()
             for index, point in df.iterrows():
                 x = point['Longitude']
                 y = point['Latitude']
-                temp_poly = Polygon([(x-long_res, y-lat_res),   # Bottom left corner
-                                    (x, y-lat_res),            # Bottom right corner
-                                    (x, y),                   # Top right corner
-                                    (x-long_res, y)])           # Top left corner
+                temp_poly = Polygon([(x, y),                    # Top left corner
+                                    (x+long_res, y),            # Top right corner
+                                    (x+long_res, y+lat_res),    # Bottom right corner
+                                    (x, y+lat_res)])            # Bottom left corner
                 if temp_poly.intersects(poly):   # if the data point is inside the city polygon
-                    # should consider adding by a percentage of the intersection of the polygon
-                    city_arr[i][0] += 1
-                    city_arr[i][1:] = np.add(city_arr[i][1:], point.values)
+                    # The following calculates the percentage of the tif point that intersects the city
+                    weight = temp_poly.intersection(poly).area / temp_poly.area
+                    city_arr[i][0] += weight
+                    # Increments by the intersection percentage weight
+                    city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
         else:
             # For cities represented as MultiPolygons, extract each polygon within them and evaluate
             for p in poly.geoms:
+                if not p.is_valid:
+                    # x1,y1 = p.exterior.xy
+                    # plt.plot(x1,y1)
+                    # plt.show()
+                    p = p.buffer(0)
                 # get only chunk of tif files that could be within city bounds
                 y_bounds = convertLatToIndex(np.array([p.bounds[1], p.bounds[3]]), tifs[0])
                 x_bounds = convertLongToIndex(np.array([p.bounds[0], p.bounds[2]]), tifs[0])
                 df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-                index_to_drop = df[(df < -3e30)].index # Remove Rows that have negative numbers as population sizes.
-                df.drop(index_to_drop , inplace=True)
+                df[(df < -3e30)] = None # Remove Rows that have negative numbers as population sizes.
+                df = df.dropna()
                 for index, point in df.iterrows():
                     x = point['Longitude']
                     y = point['Latitude']
-                    temp_poly = Polygon([(x-long_res, y-lat_res),   # Bottom left corner
-                                        (x, y-lat_res),            # Bottom right corner
-                                        (x, y),                   # Top right corner
-                                        (x-long_res, y)])           # Top left corner
+                    temp_poly = Polygon([(x, y),                    # Top left corner
+                                        (x+long_res, y),            # Top right corner
+                                        (x+long_res, y+lat_res),    # Bottom right corner
+                                        (x, y+lat_res)])            # Bottom left corner
                     if temp_poly.intersects(p):   # if the data point is inside the city polygon
-                        # should consider adding by a percentage of the intersection of the polygon
-                        city_arr[i][0] += 1
-                        city_arr[i][1:] = np.add(city_arr[i][1:], point.values)
+                        # The following calculates the percentage of the tif point that intersects the city
+                        weight = temp_poly.intersection(p).area / temp_poly.area
+                        city_arr[i][0] += weight
+                        # Increments by the intersection percentage weight
+                        city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
         new_time = time.time()
         print("City {} ({}) PaleoClim data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
     city_arr_t = city_arr.T
@@ -269,49 +300,56 @@ def landscanCityData(gdf):
         old_time = time.time()
         print("Starting to aggregate population data for city {} ({})".format(i,names[i]))
         if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
+            if not poly.is_valid:
+                poly = poly.buffer(0)
             for j,t in enumerate(tifs): # iterating over both tifs because they have different dimensions.
                 # get only chunk of tif files that could be within city bounds
                 y_bounds = convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), t)
                 x_bounds = convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), t)
                 df = tifsToDF([t], chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-                index_to_drop = df[(df[0] < 0)].index # Remove Rows that have negative numbers as population sizes.
-                df.drop(index_to_drop , inplace=True)
-                # This will reduce some computation time
+                df[(df[0] < 0)] = None # Remove Rows that have negative numbers as population sizes.
+                df = df.dropna()
                 for index, point in df.iterrows():
                     x = point['Longitude']
                     y = point['Latitude']
-                    temp_poly = Polygon([(x-long_res[j], y-lat_res[j]),   # Bottom left corner
-                                        (x, y-lat_res[j]),            # Bottom right corner
-                                        (x, y),                   # Top right corner
-                                        (x-long_res[j], y)])           # Top left corner
+                    temp_poly = Polygon([(x, y),                    # Top left corner
+                                        (x+long_res[j], y),            # Top right corner
+                                        (x+long_res[j], y+lat_res[j]),    # Bottom right corner
+                                        (x, y+lat_res[j])])            # Bottom left corner
                     if temp_poly.intersects(poly):   # if the data point is inside the city polygon
-                        # should consider adding by a percentage of the intersection of the polygon
-                        city_arr[i][j] += 1
-                        city_arr[i][2:4] = np.add(city_arr[i][2:4], point.values[0:2])
-                        city_arr[i][4+j] += point.values[2]
+                        # The following calculates the percentage of the tif point that intersects the city
+                        weight = temp_poly.intersection(poly).area / temp_poly.area
+                        # Increments by the intersection percentage weight
+                        city_arr[i][j] += weight
+                        city_arr[i][2:4] = np.add(city_arr[i][2:4], weight*point.values[0:2])
+                        city_arr[i][4+j] += weight*point.values[2]
         else:
             # For cities represented as MultiPolygons, extract each polygon within them and evaluate
             for p in poly.geoms:
+                if not p.is_valid:
+                    p = p.buffer(0)
                 for j,t in enumerate(tifs): # iterating over both tifs because they have different dimensions.
                     # get only chunk of tif files that could be within city bounds
                     y_bounds = convertLatToIndex(np.array([p.bounds[1], p.bounds[3]]), t)
                     x_bounds = convertLongToIndex(np.array([p.bounds[0], p.bounds[2]]), t)
                     df = tifsToDF([t], chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-                    index_to_drop = df[(df[0] < 0)].index # Remove Rows that have negative numbers as population sizes.
-                    df.drop(index_to_drop , inplace=True)
+                    df[(df[0] < 0)] = None # Remove Rows that have negative numbers as population sizes.
+                    df = df.dropna()
                     # This will reduce some computation time
                     for index, point in df.iterrows():
                         x = point['Longitude']
                         y = point['Latitude']
-                        temp_poly = Polygon([(x-long_res[j], y-lat_res[j]),   # Bottom left corner
-                                            (x, y-lat_res[j]),            # Bottom right corner
-                                            (x, y),                   # Top right corner
-                                            (x-long_res[j], y)])           # Top left corner
+                        temp_poly = Polygon([(x, y),                    # Top left corner
+                                            (x+long_res[j], y),            # Top right corner
+                                            (x+long_res[j], y+lat_res[j]),    # Bottom right corner
+                                            (x, y+lat_res[j])])            # Bottom left corner
                         if temp_poly.intersects(p):   # if the data point is inside the city polygon
-                            # should consider adding by a percentage of the intersection of the polygon
-                            city_arr[i][j] += 1
-                            city_arr[i][2:4] = np.add(city_arr[i][2:4], point.values[0:2])
-                            city_arr[i][4+j] += point.values[2]
+                            # The following calculates the percentage of the tif point that intersects the city
+                            weight = temp_poly.intersection(p).area / temp_poly.area
+                            # Increments by the intersection percentage weight
+                            city_arr[i][j] += weight
+                            city_arr[i][2:4] = np.add(city_arr[i][2:4], weight*point.values[0:2])
+                            city_arr[i][4+j] += weight*point.values[2]
         new_time = time.time()
         print("City {} ({}) population data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
     city_arr_t = city_arr.T
