@@ -13,18 +13,8 @@ import geopandas as gpd
 import numpy as np
 import gdal
 import matplotlib.pyplot as plt
-import errno, stat
-from shapely.geometry import Point, asMultiPoint
 from shapely.geometry.polygon import Polygon
 
-
-def handleRemoveReadonly(func, path, exc):
-  excvalue = exc[1]
-  if func in (os.rmdir, os.remove) and excvalue.errno == errno.EACCES:
-      os.chmod(path, stat.S_IRWXU| stat.S_IRWXG| stat.S_IRWXO) # 0777
-      func(path)
-  else:
-      raise
 
 def convertIndexToLong(x_ind_arr, rast):
     # input is an array of indices, and the raster dataset object
@@ -72,9 +62,9 @@ def tifsToDF(tifs, chunkx = 0, chunky = 0, offsetx = 0, offsety = 0):
     # Stores list of "tifs" (gdal objects representing read .tif files) in a pandas DataFrame
     # Optionally data can be stored in a DataFrame in chunks (for large datasets)
     # NOTE: This function assumes that all the tifs have the same dimensions!
-    # If they have different Raster sizes, the data will not be aggregated correctly.
+    # If they have different Raster sizes, this function will return 0.
     for tif in tifs:
-        # If the file is large, the following will only read the specified "chunk" of the data
+        # Reads the specified "chunk" of the data
         cols = tif.RasterXSize
         rows = tif.RasterYSize
         win_xsize = chunkx if chunkx != 0 else cols
@@ -100,6 +90,51 @@ def tifsToDF(tifs, chunkx = 0, chunky = 0, offsetx = 0, offsety = 0):
         df[i] = arr
     return df
 
+def plotCity(poly, pixels = None, res = None, title='', xlabel='Longitude (degrees)', ylabel='Latitude (degrees)'):
+    """
+    This function plots the city exterior and interior boundaries.
+    Optionally it also plots the neighboring pixels and their intersections.
+    
+    inputs:
+        poly -> a Polygon object representing a city
+        pixels -> a pandas DataFrame containing the coordinates
+        res -> list of two floats representing the x resolution and y resolution of the pixels.
+        of each pixel within range of the city.
+        title, xlabel, ylabel -> Optional title, x-label, and y-label strings to name the plot.
+    """
+    plt.figure()
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+    plt.title(title)
+    x1,y1 = poly.exterior.xy
+    line1 = plt.plot(x1,y1,'k',label='City Bounds')
+    plt.fill(x1,y1,'gainsboro')
+    for inter in poly.interiors:
+        x1,y1 = inter.xy
+        plt.plot(x1,y1,'k',label='City Bounds')
+        plt.fill(x1,y1,'white')
+    # iterate over each pixel and plot it
+    if pixels is None:
+        return
+    for index, point in pixels.iterrows():
+        x = point['Longitude']
+        y = point['Latitude']
+        temp_poly = Polygon([(x, y),                    # Top left corner
+                            (x+res[0], y),            # Top right corner
+                            (x+res[0], y+res[1]),    # Bottom right corner
+                            (x, y+res[1])])            # Bottom left corner
+        # For generating an example visualization
+        x2,y2 = temp_poly.exterior.xy
+        if temp_poly.intersects(poly):
+            line2 = plt.plot(x2,y2,'b:',label='Interior Pixel')
+            if temp_poly.intersection(poly).area / temp_poly.area == 1:
+                plt.fill(x2,y2,'lightblue')   # fill polygons if they fully intersect
+        else:
+            line3 = plt.plot(x2,y2,'r:',label='Exterior Pixel')
+            plt.fill(x2,y2,'mistyrose')   # fill polygons if they fully intersect
+    plt.legend(handles=[line1[0],line2[0],line3[0]],framealpha=1,loc='upper right')
+    return
+
 def worldclimCityData(gdf):
     """
     This script reads in WorldClim .tif data and aggregates it into the mean value within each city.
@@ -112,9 +147,10 @@ def worldclimCityData(gdf):
     """
     start = time.time()
     names =  gdf['name_conve'].values
+    # city = "Boston"     # For plotting city pixel data
     poly_list = gdf.geometry
     # WorldClim .tif files downloaded from https://worldclim.org/data/worldclim21.html and placed within the following path:
-    data_path = '..\\..\\datasets\\WorldClim\\'
+    data_path = '../../datasets/WorldClim/'
     # Read the .tif files, store in a dataframe, store location resolutions
     tifs, file_names = openTifsInDirectory(data_path)
     long_res = tifs[0].GetGeoTransform()[1]
@@ -129,13 +165,32 @@ def worldclimCityData(gdf):
         print("Starting to aggregate WorldClim data for city {} ({})".format(i,names[i]))
         if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
             if not poly.is_valid:
-                poly = poly.buffer(0)
+                # Some cities have boundaries that cross each other which causes the polygons to be invalid.
+                # This poly.buffer(0) makes it so the external bounds don't cross.
+                ### Below demonstrates the difference between the original city and the buffered city. ###
+                # a1 = poly.area
+                # a2 = poly.buffer(0).area
+                # if a1 != a2:
+                #     plotCity(poly,title='{} (before buffer) Area = {}'.format(names[i],poly.area), xlabel='Longitude (degrees)', ylabel='Latitude (degrees)')
+                #     x1,y1 = poly.exterior.xy
+                #     plt.plot(x1,y1,'r-')
+                #     plotCity(poly.buffer(0),title='{} (after buffer) Area = {}'.format(names[i],poly.buffer(0).area), xlabel='Longitude (degrees)', ylabel='Latitude (degrees)')
+                #     x1,y1 = poly.buffer(0).exterior.xy
+                #     plt.plot(x1,y1,'b-')
+                #     plt.show()
+                poly= poly.buffer(0)    
+
             # get only chunk of tif files that could be within city bounds
             y_bounds = convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), tifs[0])
             x_bounds = convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), tifs[0])
             df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-            df[(df < -3e30)] = None # Remove Rows that have negative numbers as population sizes.
+            df[(df < -3e30)] = None
             df = df.dropna()
+            # For plotting a specific city:
+            # if names[i] == city:
+            #     plotCity(poly, df, [long_res, lat_res],'Pixel Intersections in {} (five arcminute)'.format(city), 'Longitude (degrees)', 'Latitude (degrees)')
+            #     plt.savefig('../figures/{}_5m_pixels.png'.format(city))
+            #     plt.show()
             for index, point in df.iterrows():
                 x = point['Longitude']
                 y = point['Latitude']
@@ -143,13 +198,6 @@ def worldclimCityData(gdf):
                                     (x+long_res, y),            # Top right corner
                                     (x+long_res, y+lat_res),    # Bottom right corner
                                     (x, y+lat_res)])            # Bottom left corner
-                # FOR DEBUGGING BELOW
-                # x1,y1 = poly.exterior.xy
-                # x2,y2 = temp_poly.exterior.xy
-                # plt.plot(x1,y1)
-                # plt.plot(x2,y2)
-                # plt.plot(x,y,'.')
-                # plt.show()
                 if temp_poly.intersects(poly):   # if the data point is inside the city polygon
                     # The following calculates the percentage of the tif point that intersects the city
                     weight = temp_poly.intersection(poly).area / temp_poly.area
@@ -165,7 +213,7 @@ def worldclimCityData(gdf):
                 y_bounds = convertLatToIndex(np.array([p.bounds[1], p.bounds[3]]), tifs[0])
                 x_bounds = convertLongToIndex(np.array([p.bounds[0], p.bounds[2]]), tifs[0])
                 df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-                df[(df < -3e30)] = None # Remove Rows that have negative numbers as population sizes.
+                df[(df < -3e30)] = None
                 df = df.dropna()
                 for index, point in df.iterrows():
                     x = point['Longitude']
@@ -182,6 +230,7 @@ def worldclimCityData(gdf):
                         city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
         new_time = time.time()
         print("City {} ({}) WorldClim data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
+        # For generating an example visualization
     city_arr_t = city_arr.T
     city_arr_t[1:] = city_arr_t[1:] / city_arr_t[0]   # Averaging all values in city_arr
     city_arr = city_arr_t.T
@@ -201,7 +250,7 @@ def paleoclimCityData(gdf):
     names =  gdf['name_conve'].values
     poly_list = gdf.geometry
     # paleoclim data files downloaded from http://www.paleoclim.org/. Files placed into the data_path below:
-    data_path = '..\\..\\datasets\\paleoclim\\'
+    data_path = '../../datasets/paleoclim/'
     # Read the .tif files, store in a dataframe, store location resolutions
     tifs, file_names = openTifsInDirectory(data_path)
     long_res = tifs[0].GetGeoTransform()[1]
@@ -224,7 +273,7 @@ def paleoclimCityData(gdf):
             y_bounds = convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), tifs[0])
             x_bounds = convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), tifs[0])
             df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-            df[(df < -3e30)] = None # Remove Rows that have negative numbers as population sizes.
+            df[(df < -3e30)] = None
             df = df.dropna()
             for index, point in df.iterrows():
                 x = point['Longitude']
@@ -285,10 +334,10 @@ def landscanCityData(gdf):
     names =  gdf['name_conve'].values
     poly_list = gdf.geometry
     # landscan data files downloaded from https://landscan.ornl.gov/. Files placed into the data_path below:
-    data_path = '..\\..\\datasets\\landscan\\'
+    data_path = '../../datasets/landscan/'
     # Read the .tif files, store in a dataframe, store location resolutions
     # for landscan, read in chunks (too much data to store all in a dataframe)
-    
+    # city = "Tucson"     # City to be plotted
     tifs, file_names = openTifsInDirectory(data_path)
     # NOTE: Landscan .tif files for 2000 and 2020 have different dimensions and must be aggregated separately
     long_res = (tifs[0].GetGeoTransform()[1], tifs[1].GetGeoTransform()[1])
@@ -309,6 +358,11 @@ def landscanCityData(gdf):
                 df = tifsToDF([t], chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
                 df[(df[0] < 0)] = None # Remove Rows that have negative numbers as population sizes.
                 df = df.dropna()
+                # For plotting a specific city:
+                # if names[i] == city:
+                #     plotCity(poly, df, [long_res[j], lat_res[j]],'Pixel Intersections in {} (30 arcsec resolution)'.format(city), 'Longitude (degrees)', 'Latitude (degrees)')
+                #     plt.savefig('../figures/{}_30s_pixels.png'.format(city))
+                #     plt.show()
                 for index, point in df.iterrows():
                     x = point['Longitude']
                     y = point['Latitude']
