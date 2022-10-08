@@ -22,13 +22,13 @@ def parseOptions():
                          help='City to be plotted (case sensitive; options are any city in our database (Boston, Los Angeles, Tokyo, Beijing, etc.)' )
     optParser.add_option('-w', '--worldclim',action='store_true',
                          dest='worldclim',default=False,
-                         help='Extract WorldClim data stored at "{}"'.format(data_path + '\worldclim'))
+                         help='Extract WorldClim data stored at "{}"'.format(data_path + 'worldclim'))
     optParser.add_option('-p', '--paleoclim',action='store_true',
                          dest='paleoclim',default=False,
-                         help='Extract PaleoClim data stored at "{}"'.format(data_path + '\paleoclim'))
+                         help='Extract PaleoClim data stored at "{}"'.format(data_path + 'paleoclim'))
     optParser.add_option('-l', '--landscan',action='store_true',
                          dest='landscan',default=False,
-                         help='Extract Landscan data stored at "{}"'.format(data_path + '\landscan'))
+                         help='Extract Landscan data stored at "{}"'.format(data_path + 'landscan'))
 
     opts, args = optParser.parse_args()
 
@@ -66,7 +66,7 @@ if __name__ == '__main__':
             plt.savefig('../figures/{}_worldclim_pixels_5m.png'.format(opts.plot_city))
         
         if opts.paleoclim:
-            # plot city with worldclim pixels
+            # plot city with paleoclim pixels
             tifs, file_names = etd.openTifsInDirectory(data_path + '/paleoclim/')
             long_res = tifs[0].GetGeoTransform()[1]
             lat_res = tifs[0].GetGeoTransform()[5]
@@ -81,19 +81,23 @@ if __name__ == '__main__':
             plt.savefig('../figures/{}_paleoclim_pixels_5m.png'.format(opts.plot_city))
         
         if opts.landscan:
-            # plot city with worldclim pixels
+            # plot city with landscan pixels
+            # landscan uses tifs with different dimensions, so these should graphed twice.
             tifs, file_names = etd.openTifsInDirectory(data_path + '/landscan/')
-            long_res = tifs[0].GetGeoTransform()[1]
-            lat_res = tifs[0].GetGeoTransform()[5]
-            # get only chunk of tif files that could be within city bounds
-            y_bounds = etd.convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), tifs[0])
-            x_bounds = etd.convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), tifs[0])
-            df = etd.tifsToDF([tifs[0]], chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
-            df[(df[0] < 0)] = None # Remove Rows that have negative numbers as population sizes.
-            df = df.dropna()
-            etd.plotCity(poly, pixels=df, res=[long_res,lat_res],
-                         title='Landscan Pixel (30 arcsec resolution) Intersections for {}'.format(opts.plot_city))
-            plt.savefig('../figures/{}_landscan_pixels_30s.png'.format(opts.plot_city))
+            for i,t in enumerate(tifs):
+                # tifs[0] would represent the year 2000 in the directory in our case
+                year = file_names[i][-8:-4]
+                long_res = t.GetGeoTransform()[1]
+                lat_res = t.GetGeoTransform()[5]
+                # get only chunk of tif files that could be within city bounds
+                y_bounds = etd.convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), t)
+                x_bounds = etd.convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), t)
+                df = etd.tifsToDF([t], chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
+                df[(df[0] < 0)] = None # Remove Rows that have negative numbers as population sizes.
+                df = df.dropna()
+                etd.plotCity(poly, pixels=df, res=[long_res,lat_res],
+                            title='Landscan Population Pixel Intersections for {} in the year {} (resolution 30 arcsec)'.format(opts.plot_city, year))
+                plt.savefig('../figures/{}_landscan_pixels_{}_30s.png'.format(opts.plot_city, year))
         plt.show()
     else:
         if (opts.worldclim and opts.paleoclim and opts.landscan) or not (opts.worldclim or opts.paleoclim or opts.landscan):
