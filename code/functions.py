@@ -45,9 +45,14 @@ def cluster(df, features, num_clusters):
 
 def plot_clusters(cities):
     unique, counts = np.unique(cities['Cluster'].values, return_counts=True)
+    if len(unique) == 5:
+        # For 5 clusters plot, set the five colors.
+        colors = ['salmon', 'mediumorchid', 'cornflowerblue', 'limegreen', 'gold']
+    else:
+        colors = ['']*20
     plt.figure()
     bar_ax = plt.subplot(111)
-    bar_ax.bar(unique,counts)  # Plots the number of occurrences for each cluster
+    bar_ax.bar(unique,counts,color=colors)  # Plots the number of occurrences for each cluster
     bar_ax.set_title('City Cluster Counts')
     bar_ax.set_xlabel('Cluster Numbers')
     bar_ax.set_ylabel('Counts')
@@ -57,28 +62,63 @@ def plot_clusters(cities):
     plt.figure()
     ax = plt.subplot(111)
     points = []
-    for k in unique:
+    for k in range(len(unique)):
         df = cities[cities['Cluster'] == k]
         points.append(ax.plot(df['Longitude'], df['Latitude'],
-                            '.',markersize=1.5, alpha=0.7,label='Cluster {}'.format(k)))
+                            '.',color=colors[k],markersize=1.5, alpha=0.7,label='Cluster {}'.format(unique[k])))
     
     box = ax.get_position()
     ax.set_position([box.x0, box.y0,
                     box.width, box.height * 0.9])
-    ax.legend(handles=[points[k][0] for k in unique],loc='upper center', bbox_to_anchor=(0.5, 1.1),
+    ax.legend(handles=[points[k][0] for k in range(len(unique))],loc='upper center', bbox_to_anchor=(0.5, 1.1),
             ncol=3, fancybox=True, shadow=True, markerscale=5)
     ax.set_title('Geospatial Representation of {} City Clusters'.format(len(unique)), x=0.5, y=1.11)
     ax.set_xlabel('Longitude (Degrees)')
     ax.set_ylabel('Latitude (Degrees)')
+    plt.xlim([-180, 180])
+    plt.ylim([-90, 90])
     plt.savefig('../figures/{}_city_clusters.png'.format(len(unique)))
 
-def get_baselines(cities, features, num_clusters=5):
-    # run k-means clustering 5-10 times, then cluster those results to get the true baseline
-    labels = np.zeros(shape=(10, len(cities.index)))
-    for i in range(10):
+def get_baselines(cities, features, num_clusters=5, iters=1000):
+    """
+    Calculates baseline clusters for each city by running k-means
+    clustering "iters" (default 1000) number of times. The cluster centers
+    are averaged from each iteration, then cities are labeled based on the
+    minimum Euclidean distance to each cluster.
+
+    Args:
+        cities (DataFrame): DataFrame of the cities and its features.
+        features (Pandas Series of strings): The specified features to use
+        for clustering.
+        num_clusters (int, optional): Number of clusters. Defaults to 5.
+        iters (int, optional): Number of clustering iterations. Defaults to 1000.
+
+    Returns:
+        labels (1D NumPy array): the 1D list of city cluster labels.
+    """
+    # run k-means clustering multiple times, then average cluster centers to get true baseline
+    centers = np.zeros(shape=(num_clusters, len(features)))
+    for i in range(iters):
         k_means = cluster(cities, features, num_clusters=num_clusters)
-        labels[i] = k_means.labels_
-    return KMeans(n_clusters=num_clusters).fit(labels.T).labels_
+        # Cluster numbers are random in each iteration, so to keep the cluster labels
+        # consistently ordered, sort by each cluster's sum of their center's features.
+        sums = np.array([np.sum(x) for x in k_means.cluster_centers_])
+        centers += k_means.cluster_centers_[np.argsort(sums)]
+    centers = centers/iters   # average cluster centers
+    normalized = preprocessing.normalize(cities[features].values, norm='l2')
+    # Calculate Euclidean distance from average cluster centers
+    # Find the minimum Euclidean distance for each city,
+    # assign city to that cluster label.
+    labels = []
+    for i, n in enumerate(normalized):
+        dist = np.linalg.norm(n - centers[0])
+        labels.append(1)
+        for j in range(1, num_clusters):
+            d = np.linalg.norm(n - centers[j])
+            if d < dist:
+                dist = d
+                labels[i] = j + 1
+    return np.array(labels)
 
 def cluster_stability(df, features, baseline, num_clusters=5, iters=1):
     """
@@ -96,17 +136,19 @@ def cluster_stability(df, features, baseline, num_clusters=5, iters=1):
     # for each iteration, recluster , determine the error for each label
     # Calculate for each city how many old neighbors are in the same cluster still in each iteration
     # Average the stability out over the number of iterations. Weed out cities with stability less than threshold
-    neighbors = np.zeros(shape=(len(baseline), len(baseline)))  # 6018 x 6018 array of zeros
-    b_neighbors = np.zeros(shape=(len(baseline), len(baseline)))  # 6018 x 6018 array of zeros
-    for j in range(len(baseline)): b_neighbors[j] = baseline[j] == baseline
+    neighbors = np.zeros(shape=(len(baseline), len(baseline)))  # array of zeros
+    b_neighbors = np.zeros(shape=(len(baseline), len(baseline)))  # array of zeros
+    labels = np.zeros(shape=(len(baseline),))  # 1D array, labels for each city
+    for j in df.index: b_neighbors[j] = baseline[j] == baseline
     # neighbors = binary square matrix representing cities that are in the same cluster
     # b_neighbors = baseline square matrix representing cities that are in the same cluster for the baseline
     # if city i is in the same cluster as city j, old_neighbors[i,j] = 1
-    stability = np.zeros(shape=(len(df.index),))
+    stability = np.zeros(shape=(len(baseline),))
     for _ in range(iters):
         k_means = cluster(df, features, num_clusters=num_clusters)
-        labels = k_means.labels_
-        for j in range(len(neighbors)): neighbors[j] = labels[j] == labels
+        labels[df.index] = k_means.labels_ + 1
+        # starting the labels at 1, not 0
+        for j in df.index: neighbors[j] = labels[j] == labels
         stability += np.sum(neighbors * b_neighbors, axis=0) / np.sum(b_neighbors, axis=0)
         # stability => percent of baseline neighbors remaining in the same cluster as the city
     return stability / iters
