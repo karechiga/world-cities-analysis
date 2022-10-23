@@ -52,7 +52,10 @@ def plot_clusters(cities):
         colors = ['']*20
     plt.figure()
     bar_ax = plt.subplot(111)
-    bar_ax.bar(unique,counts,color=colors)  # Plots the number of occurrences for each cluster
+    if len(unique) == 5:
+        bar_ax.bar(unique,counts,color=colors)  # Plots the number of occurrences for each cluster
+    else:
+        bar_ax.bar(unique,counts)
     bar_ax.set_title('City Cluster Counts')
     bar_ax.set_xlabel('Cluster Numbers')
     bar_ax.set_ylabel('Counts')
@@ -63,9 +66,9 @@ def plot_clusters(cities):
     ax = plt.subplot(111)
     points = []
     for k in range(len(unique)):
-        df = cities[cities['Cluster'] == k]
+        df = cities[cities['Cluster'] == k+1]
         points.append(ax.plot(df['Longitude'], df['Latitude'],
-                            '.',color=colors[k],markersize=1.5, alpha=0.7,label='Cluster {}'.format(unique[k])))
+                            '{}.'.format(colors[k]),markersize=1.5, alpha=0.7,label='Cluster {}'.format(unique[k])))
     
     box = ax.get_position()
     ax.set_position([box.x0, box.y0,
@@ -152,3 +155,41 @@ def cluster_stability(df, features, baseline, num_clusters=5, iters=1):
         stability += np.sum(neighbors * b_neighbors, axis=0) / np.sum(b_neighbors, axis=0)
         # stability => percent of baseline neighbors remaining in the same cluster as the city
     return stability / iters
+
+def cluster_analysis(cities, features, num_clusters=5, c_iters=10, b_stab_iters=100, 
+                     stab_iters=100, drop_feat_perc=10, drop_rows_perc=10):
+    """
+    Reads in data features for all cities in the dataset and performs
+    multiple K-Means clustering iterations to determine the stability of each cluster.
+    
+    """
+    # find baseline clusters to compare against
+    baseline = get_baselines(cities, features, num_clusters, c_iters)
+    cities['Cluster'] = baseline
+    # Baseline cluster stability:
+    b_stability = cluster_stability(cities, features, baseline, iters=b_stab_iters)
+    cities['Baseline_Stability'] = b_stability
+    # randomly removing features, rows from the feature set
+    drop_feats = int(np.floor(drop_feat_perc*len(features))/100)
+    drop_rows = int(np.floor(drop_rows_perc*len(cities))/100)
+
+    # initializing stability
+    stability = np.zeros(shape=(len(baseline)))
+    count = np.zeros(shape=(len(baseline)))
+    for i in range(stab_iters):
+        to_drop = np.random.randint(len(features), size=drop_feats)
+        new_feats = features.drop(features[to_drop])
+        to_drop = np.random.randint(len(cities), size=drop_rows)
+        new_cities = cities.drop(to_drop,axis=0)
+        count[new_cities.index] += 1
+        stability += cluster_stability(new_cities, new_feats, baseline)
+    stability = stability / count
+    cities['Stability'] = stability
+    # Saving to CSV
+    cities[['City','Cluster','Baseline_Stability','Stability']].to_csv('../cluster_data/cluster_stabilities_{}.csv'.format(num_clusters),index=False)
+    cities.to_csv('../cluster_data/cities_{}.csv'.format(num_clusters),index=False)
+    return
+
+def plot_stability():
+    print("not implemented yet")
+    return
