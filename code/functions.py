@@ -189,7 +189,3 @@ def cluster_analysis(cities, features, num_clusters=5, c_iters=10, b_stab_iters=
     cities[['City','Cluster','Baseline_Stability','Stability']].to_csv('../cluster_data/cluster_stabilities_{}.csv'.format(num_clusters),index=False)
     cities.to_csv('../cluster_data/cities_{}.csv'.format(num_clusters),index=False)
     return
-
-def plot_stability():
-    print("not implemented yet")
-    return

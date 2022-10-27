@@ -16,9 +16,6 @@ def parseOptions():
                             dest='analysis',default=True,
                             help='Clusters the cities based on features located at "../../datasets/csv_data/". '+
                                 'Then calculates the cluster stability by running several iterations of clustering.')
-    optParser.add_option('-s', '--stability',action='store_true',
-                            dest='stability',default=False,
-                            help='Plot the stabilities of cities in their clusters based on stabilities located at "../cluster_data/cluster_stabilities.csv".')
     optParser.add_option('-c', '--cluster',action='store_true',
                             dest='cluster_plot',default=False,
                             help='Clusters city data located at "../../datasets/csv_data/", then plots the clusters in a geographic representation.')
@@ -61,8 +58,6 @@ if __name__ == '__main__':
     features = cities.columns.drop(['City', 'Longitude',
                                     'Latitude','tif_count_2000',
                                     'tif_count_2021'])
-    if opts.stability:
-        fnc.plot_stability()    # need to implement
     if opts.cluster_plot:
         np.random.seed(opts.random_seed)
         # find baseline clusters to compare against
@@ -71,7 +66,7 @@ if __name__ == '__main__':
         cities['Cluster'] = baseline
         fnc.plot_clusters(cities)
         plt.show()
-    if not opts.cluster_plot and not opts.stability:
+    if not opts.cluster_plot:
         np.random.seed(opts.random_seed)
         fnc.cluster_analysis(cities, features, num_clusters=opts.num_clusters, c_iters=opts.cluster_iters,
                              b_stab_iters=opts.b_stab_iters, stab_iters=opts.stab_iters,
