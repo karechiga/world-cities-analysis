@@ -16,4 +16,4 @@ plt1 <- ggplot(data, aes(x=Cluster,group=Cluster,y = Stability*100, color=Cluste
 show(plt1)
 
 # saving the plots as pngs in the "figures" folder 
-ggsave(paste("Cluster_Stability_", length(unique(data$Cluster)) ,".png", sep=NA), plt1, path = "./figures")
+ggsave(paste("Cluster_Stability_", length(unique(data$Cluster)) ,".png", sep=""), plt1, path = "../figures")
