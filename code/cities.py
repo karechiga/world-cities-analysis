@@ -61,6 +61,7 @@ if __name__ == '__main__':
     if opts.cluster_plot:
         np.random.seed(opts.random_seed)
         # find baseline clusters to compare against
+        print("Clustering cities...")
         baseline = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters, iters=opts.cluster_iters)
         # Plotting the baseline clusters:
         cities['Cluster'] = baseline
@@ -68,6 +69,7 @@ if __name__ == '__main__':
         plt.show()
     if not opts.cluster_plot:
         np.random.seed(opts.random_seed)
+        print("Analyzing the stability of the calculated baseline clusters...")
         fnc.cluster_analysis(cities, features, num_clusters=opts.num_clusters, c_iters=opts.cluster_iters,
                              b_stab_iters=opts.b_stab_iters, stab_iters=opts.stab_iters,
                              drop_feat_perc=opts.drop_feats_perc, drop_rows_perc=opts.drop_rows_perc)

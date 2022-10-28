@@ -47,7 +47,7 @@ def plot_clusters(cities):
     unique, counts = np.unique(cities['Cluster'].values, return_counts=True)
     if len(unique) == 5:
         # For 5 clusters plot, set the five colors.
-        colors = ['salmon', 'mediumorchid', 'cornflowerblue', 'limegreen', 'gold']
+        colors = ['salmon', 'gold', 'limegreen', 'cornflowerblue', 'mediumorchid']
     else:
         colors = ['']*20
     plt.figure()
@@ -67,9 +67,13 @@ def plot_clusters(cities):
     points = []
     for k in range(len(unique)):
         df = cities[cities['Cluster'] == k+1]
-        points.append(ax.plot(df['Longitude'], df['Latitude'],
-                            '{}.'.format(colors[k]),markersize=1.5, alpha=0.7,label='Cluster {}'.format(unique[k])))
-    
+        if len(unique) != 5:
+            points.append(ax.plot(df['Longitude'], df['Latitude'],
+                                '.',markersize=1.5, alpha=0.7,label='Cluster {}'.format(unique[k])))
+        else:
+            points.append(ax.plot(df['Longitude'], df['Latitude'],
+                                '.',color=colors[k],markersize=1.5, alpha=0.7,label='Cluster {}'.format(unique[k])))
+
     box = ax.get_position()
     ax.set_position([box.x0, box.y0,
                     box.width, box.height * 0.9])
