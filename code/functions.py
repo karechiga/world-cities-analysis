@@ -24,14 +24,14 @@ def get_cities(path):
                 cities = pd.read_csv(path + f)
                 if not 'landscan' in f:
                     # Only using the Latitude and Longitude provided in the Landscan csv.
-                    cities = cities.drop(['Latitude', 'Longitude', 'tif_count'],axis=1)
+                    cities = cities.drop(['Region', 'Latitude', 'Longitude', 'tif_count'],axis=1)
                 first_file = False
             else:
                 # add to the cities df by merging with the new csv
                 new_csv = pd.read_csv(path + f)
                 if not 'landscan' in f:
                     # Only using the Latitude and Longitude provided in the Landscan csv.
-                    new_csv = new_csv.drop(['Latitude', 'Longitude', 'tif_count'],axis=1)
+                    new_csv = new_csv.drop(['Region', 'Latitude', 'Longitude', 'tif_count'],axis=1)
                 cities = pd.merge(cities, new_csv,on='City')
     return cities
 

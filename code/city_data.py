@@ -100,6 +100,11 @@ if __name__ == '__main__':
                 plt.savefig('../figures/{}_landscan_pixels_{}_30s.png'.format(opts.plot_city, year))
         plt.show()
     else:
+        conts = gpd.read_file('../../continent-boundaries/ne_50m_geography_regions_polys.shp')
+        conts = conts[conts['SCALERANK'] == 0]
+        # Find what continent each city resides in.
+        cont_list = etd.getContinents(gdf, conts)
+        cities = pd.DataFrame({'City' : gdf['name_conve'], 'Region' : cont_list})
         if (opts.worldclim and opts.paleoclim and opts.landscan) or not (opts.worldclim or opts.paleoclim or opts.landscan):
             # get all data from three datasets
             start = time.time()

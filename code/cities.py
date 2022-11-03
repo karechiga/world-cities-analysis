@@ -55,7 +55,7 @@ if __name__ == '__main__':
     opts = parseOptions()
     path = '../../datasets/csv_data/'
     cities = fnc.get_cities(path)   # Get list of cities with their features.
-    features = cities.columns.drop(['City', 'Longitude',
+    features = cities.columns.drop(['City', 'Region', 'Longitude',
                                     'Latitude','tif_count_2000',
                                     'tif_count_2021'])
     if opts.cluster_plot:

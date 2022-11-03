@@ -14,8 +14,32 @@ import numpy as np
 import gdal
 import matplotlib.pyplot as plt
 from shapely.geometry.polygon import Polygon
+from shapely.geometry.polygon import Point
 
 
+def getContinents(city_polys, cont_polys):
+    # Assigns each city to a continent.
+    names = city_polys['name_conve']
+    continents = cont_polys['NAME']
+    cont_list = [None]*len(city_polys)
+    for i, city in city_polys.iterrows():
+        poly = city.geometry
+        # if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        center = Point(poly.centroid.x, poly.centroid.y)
+        min_dist = 999999
+        for j, cont in cont_polys.iterrows():
+            cont_poly = cont.geometry
+            d = center.distance(cont_poly)
+            if poly.intersects(cont_poly):   # if the data point is inside the city polygon
+                cont_list[i] = continents[j]
+                break
+            if d < min_dist:
+                min_dist = d
+                cont_list[i] = continents[j]
+    return cont_list
+    
 def convertIndexToLong(x_ind_arr, rast):
     # input is an array of indices, and the raster dataset object
     # output is a linearly transformed array listing longitudes instead of indices
@@ -133,6 +157,28 @@ def plotCity(poly, pixels = None, res = None, title='', xlabel='Longitude (degre
             line3 = plt.plot(x2,y2,'r:',label='Exterior Pixel')
             plt.fill(x2,y2,'mistyrose')   # fill polygons if they fully intersect
     plt.legend(handles=[line1[0],line2[0],line3[0]],framealpha=1,loc='upper right')
+    return
+
+def plotContinents(cont_polys):
+    for j, cont in cont_polys.iterrows():
+        poly = cont.geometry
+        if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # continent with single polygon bounds
+            x1,y1 = poly.exterior.xy
+            line1 = plt.plot(x1,y1,'k',label='Bounds')
+            plt.fill(x1,y1,'gainsboro')
+            for inter in poly.interiors:
+                x1,y1 = inter.xy
+                plt.plot(x1,y1,'k',label='Bounds')
+                plt.fill(x1,y1,'white')
+        else: # for multipolygons
+            for p in poly.geoms:
+                x1,y1 = p.exterior.xy
+                line1 = plt.plot(x1,y1,'k',label='Bounds')
+                plt.fill(x1,y1,'gainsboro')
+                for inter in p.interiors:
+                    x1,y1 = inter.xy
+                    plt.plot(x1,y1,'k',label='Bounds')
+                    plt.fill(x1,y1,'white')
     return
 
 def worldclimCityData(gdf):
