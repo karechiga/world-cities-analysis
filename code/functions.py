@@ -165,7 +165,6 @@ def cluster_analysis(cities, features, num_clusters=5, c_iters=10, b_stab_iters=
     """
     Reads in data features for all cities in the dataset and performs
     multiple K-Means clustering iterations to determine the stability of each cluster.
-    
     """
     # find baseline clusters to compare against
     baseline = get_baselines(cities, features, num_clusters, c_iters)
@@ -180,7 +179,7 @@ def cluster_analysis(cities, features, num_clusters=5, c_iters=10, b_stab_iters=
     # initializing stability
     stability = np.zeros(shape=(len(baseline)))
     count = np.zeros(shape=(len(baseline)))
-    for i in range(stab_iters):
+    for _ in range(stab_iters):
         to_drop = np.random.randint(len(features), size=drop_feats)
         new_feats = features.drop(features[to_drop])
         to_drop = np.random.randint(len(cities), size=drop_rows)
@@ -190,6 +189,6 @@ def cluster_analysis(cities, features, num_clusters=5, c_iters=10, b_stab_iters=
     stability = stability / count
     cities['Stability'] = stability
     # Saving to CSV
-    cities[['City','Cluster','Baseline_Stability','Stability']].to_csv('../cluster_data/cluster_stabilities_{}.csv'.format(num_clusters),index=False)
+    # cities[['City','Cluster','Baseline_Stability','Stability']].to_csv('../cluster_data/cluster_stabilities_{}.csv'.format(num_clusters),index=False)
     cities.to_csv('../cluster_data/cities_{}.csv'.format(num_clusters),index=False)
     return
