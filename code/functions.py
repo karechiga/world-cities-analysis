@@ -3,8 +3,9 @@ Functions to be used in the city_compare.py script.
 """
 import pandas as pd
 import os
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, MeanShift, DBSCAN
 from sklearn import preprocessing
+from sklearn.decomposition import PCA
 from matplotlib import pyplot as plt
 import numpy as np
 
@@ -35,15 +36,55 @@ def get_cities(path):
                 cities = pd.merge(cities, new_csv,on='City')
     return cities
 
-def cluster(df, features, num_clusters):
+def cluster(df, features, num_clusters = 5, method = 'kmeans'):
     """
-    Returns KMeans clustering scikitlearn object
+    Returns scikitlearn cluster object (default: uses kmeans)
     """
     X = df[features].values   # returns an array of the feature values
     X_norm = preprocessing.normalize(X, norm='l2')
+    if method.lower() == 'dbscan':
+        return DBSCAN(eps=0.42, min_samples=350).fit(X_norm)
     return KMeans(n_clusters=num_clusters).fit(X_norm)
 
-def plot_clusters(cities):
+def pca_2d(df, features):
+    """
+    Performs Principle Components Analysis (PCA) on the given df[features]
+    """
+    X = df[features].values   # returns an array of the feature values
+    X_norm = preprocessing.normalize(X, norm='l2')
+    pca = PCA(n_components=2)
+    pc = pca.fit_transform(X_norm)
+    return pca, pc
+
+def plot_pca(cities, method='kmeans'):
+    """
+    Input: "cities" dataframe should contain columns for "PC1" and "PC2".
+            Optionally, should also include cluster column as "Cluster".
+    """
+    unique, counts = np.unique(cities['Cluster'].values, return_counts=True)
+    plt.figure()
+    ax = plt.subplot(111)
+    points = []
+    for k in range(len(unique)):
+        df = cities[cities['Cluster'] == k+1]
+        points.append(ax.plot(df['PC1'], df['PC2'],
+                        '.',markersize=1.5, alpha=0.7,
+                        label='Cluster {}'.format(unique[k])))
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0,
+                    box.width, box.height * 0.9])
+    ax.legend(handles=[points[k][0] for k in range(len(unique))],loc='upper center', bbox_to_anchor=(0.5, 1.15),
+            ncol=3, fancybox=True, shadow=True, markerscale=5)
+    ax.set_title('2D Principle Components of {} City Clusters ({})'.
+                 format(len(unique), method.upper()), x=0.5, y=1.13)
+    ax.set_xlabel('Principle Component 1')
+    ax.set_ylabel('Principle Component 2')
+    # plt.xlim([-180, 180])
+    # plt.ylim([-90, 90])
+    plt.savefig('../figures/2d_PCA_{}_{}.png'.format(method, len(unique)))
+
+def plot_clusters(cities, method='kmeans'):
     unique, counts = np.unique(cities['Cluster'].values, return_counts=True)
     if len(unique) == 5:
         # For 5 clusters plot, set the five colors.
@@ -56,10 +97,10 @@ def plot_clusters(cities):
         bar_ax.bar(unique,counts,color=colors)  # Plots the number of occurrences for each cluster
     else:
         bar_ax.bar(unique,counts)
-    bar_ax.set_title('City Cluster Counts')
+    bar_ax.set_title('City Cluster Counts ({} clustering)'.format(method.upper()))
     bar_ax.set_xlabel('Cluster Numbers')
     bar_ax.set_ylabel('Counts')
-    plt.savefig('../figures/{}_city_clusters_counts.png'.format(len(unique)))
+    plt.savefig('../figures/{}_{}_city_clusters_counts.png'.format(method.upper(), len(unique)))
 
     # plt.show()
     plt.figure()
@@ -84,7 +125,7 @@ def plot_clusters(cities):
     ax.set_ylabel('Latitude (Degrees)')
     plt.xlim([-180, 180])
     plt.ylim([-90, 90])
-    plt.savefig('../figures/{}_city_clusters.png'.format(len(unique)))
+    plt.savefig('../figures/{}_{}_city_clusters.png'.format(len(unique), method))
 
 def get_baselines(cities, features, num_clusters=5, iters=1000):
     """
@@ -160,7 +201,7 @@ def cluster_stability(df, features, baseline, num_clusters=5, iters=1):
         # stability => percent of baseline neighbors remaining in the same cluster as the city
     return stability / iters
 
-def cluster_analysis(cities, features, num_clusters=5, c_iters=10, b_stab_iters=100, 
+def stability_analysis(cities, features, num_clusters=5, c_iters=10, b_stab_iters=100, 
                      stab_iters=100, drop_feat_perc=10, drop_rows_perc=10):
     """
     Reads in data features for all cities in the dataset and performs

@@ -4,7 +4,6 @@ Uses data aggregated in the csv files located at /../../datasets/csv_data/
 
 import functions as fnc
 import pandas as pd
-from sklearn.cluster import KMeans
 from matplotlib import pyplot as plt
 import numpy as np
 import optparse
@@ -12,13 +11,19 @@ import optparse
 
 def parseOptions():
     optParser = optparse.OptionParser()
-    optParser.add_option('-a', '--analysis',action='store_true',
-                            dest='analysis',default=True,
+    optParser.add_option('-s', '--stability',action='store_true',
+                            dest='stability',default=True,
                             help='Clusters the cities based on features located at "../../datasets/csv_data/". '+
                                 'Then calculates the cluster stability by running several iterations of clustering.')
     optParser.add_option('-c', '--cluster',action='store_true',
                             dest='cluster_plot',default=False,
                             help='Clusters city data located at "../../datasets/csv_data/", then plots the clusters in a geographic representation.')
+    optParser.add_option('-p', '--pca',action='store_true',
+                            dest='pca',default=False,
+                            help='Clusters then plots the cities with their first two Principle Components')
+    optParser.add_option('-m', '--method',action='store', type='string',
+                        dest='method',default='kmeans',
+                        help='Clustering method to perform. Type either "meanshift", "dbscan", or "kmeans". (Default: %default)')
     # optParser.add_option('-p', '--pca',action='store_true',
     #                         dest='pca',default=False,
     #                         help='Performs Principal Components Analysis (PCA).')
@@ -45,7 +50,7 @@ def parseOptions():
                             help='Random seed initialization. Default: %default' )
     # num_clusters=5, c_iters=10, b_stab_iters=100, stab_iters=100,
     #                  random_seed=20, drop_feat_perc=10, drop_rows_perc=10
-    
+
     opts, args = optParser.parse_args()
 
     return opts
@@ -62,14 +67,36 @@ if __name__ == '__main__':
         np.random.seed(opts.random_seed)
         # find baseline clusters to compare against
         print("Clustering cities...")
-        baseline = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters, iters=opts.cluster_iters)
-        # Plotting the baseline clusters:
-        cities['Cluster'] = baseline
-        fnc.plot_clusters(cities)
+        if opts.method.lower() == 'dbscan':
+            clusters = fnc.cluster(cities, features, method='dbscan')
+            labels = clusters.labels_ + 2
+        else:
+            # Default is kmeans
+            labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters, iters=opts.cluster_iters)
+        # Plotting the clusters:
+        cities['Cluster'] = labels
+        fnc.plot_clusters(cities, opts.method)
         plt.show()
-    if not opts.cluster_plot:
+    if opts.pca:
+        # Principle Components plot
+        np.random.seed(opts.random_seed)
+        print("Clustering cities, then performing PCA.")
+        if opts.method.lower() == 'dbscan':
+            clusters = fnc.cluster(cities, features, method='dbscan')
+            labels = clusters.labels_ + 2
+        else:
+            # Default is kmeans
+            labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters, iters=opts.cluster_iters)
+        cities['Cluster'] = labels
+        pca, components = fnc.pca_2d(cities, features)
+        print('Explained variance - PC1: {}, PC2: {}.'.format(
+                pca.explained_variance_[0],pca.explained_variance_[1]))
+        cities['PC1'], cities['PC2'] = components.T
+        fnc.plot_pca(cities, opts.method)
+        plt.show()
+    if not opts.cluster_plot and not opts.pca:
         np.random.seed(opts.random_seed)
         print("Analyzing the stability of the calculated baseline clusters...")
-        fnc.cluster_analysis(cities, features, num_clusters=opts.num_clusters, c_iters=opts.cluster_iters,
+        fnc.stability_analysis(cities, features, num_clusters=opts.num_clusters, c_iters=opts.cluster_iters,
                              b_stab_iters=opts.b_stab_iters, stab_iters=opts.stab_iters,
                              drop_feat_perc=opts.drop_feats_perc, drop_rows_perc=opts.drop_rows_perc)
