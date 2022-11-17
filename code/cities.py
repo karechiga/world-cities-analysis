@@ -1,5 +1,5 @@
 """ cities.py
-Uses data aggregated in the csv files located at /../../datasets/csv_data/
+Uses data aggregated in the csv files located at /../csv_data/
 """
 
 import functions as fnc
@@ -13,11 +13,11 @@ def parseOptions():
     optParser = optparse.OptionParser()
     optParser.add_option('-s', '--stability',action='store_true',
                             dest='stability',default=True,
-                            help='Clusters the cities based on features located at "../../datasets/csv_data/". '+
+                            help='Clusters the cities based on features located at "../csv_data/". '+
                                 'Then calculates the cluster stability by running several iterations of clustering.')
     optParser.add_option('-c', '--cluster',action='store_true',
                             dest='cluster_plot',default=False,
-                            help='Clusters city data located at "../../datasets/csv_data/", then plots the clusters in a geographic representation.')
+                            help='Clusters city data located at "../csv_data/", then plots the clusters in a geographic representation.')
     optParser.add_option('-p', '--pca',action='store_true',
                             dest='pca',default=False,
                             help='Clusters then plots the cities with their first two Principle Components')
@@ -58,7 +58,7 @@ def parseOptions():
 if __name__ == '__main__':
 
     opts = parseOptions()
-    path = '../../datasets/csv_data/'
+    path = '../csv_data/'
     cities = fnc.get_cities(path)   # Get list of cities with their features.
     features = cities.columns.drop(['City', 'Region', 'Longitude',
                                     'Latitude','tif_count_2000',
