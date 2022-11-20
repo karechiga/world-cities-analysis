@@ -4,7 +4,7 @@ City data to extracted from the following sources and saved in csv files:
     http://www.paleoclim.org/ (for each city, extract the mean BioX across all cells)
     https://landscan.ornl.gov/ (for each city, first, extract the total value (sum) across all cells in 2000 and 2021; second, estimate the absolute change
 """
-import extract_tif_data as etd
+import extract_data as etd
 import pandas as pd
 import geopandas as gpd
 import numpy as np
@@ -31,7 +31,10 @@ def parseOptions():
                          help='Extract Landscan data stored at "{}"'.format(data_path + 'landscan'))
     optParser.add_option('-b', '--brightness',action='store_true',
                          dest='brightness',default=False,
-                         help='Extract Sky Brightness data stored at "{}"'.format(data_path + 'landscan'))
+                         help='Extract Sky Brightness data stored at "{}"'.format(data_path + 'brightness'))
+    optParser.add_option('-r', '--roads',action='store_true',
+                         dest='roads',default=False,
+                         help='Extract road density data stored at "{}"'.format(data_path + 'roads'))
     opts, args = optParser.parse_args()
 
     return opts
@@ -127,3 +130,8 @@ if __name__ == '__main__':
             df = etd.brightnessData(gdf)
             df = pd.merge(cities,df,left_index=True,right_index=True)
             df.to_csv(data_path + 'csv_data/brightness_cities.csv',index=False)
+        if opts.roads:
+            # get all cities road density data
+            df = etd.roadData(gdf)
+            df = pd.merge(cities,df,left_index=True,right_index=True)
+            df.to_csv(data_path + 'csv_data/roads_cities.csv',index=False)
