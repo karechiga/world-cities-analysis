@@ -29,7 +29,9 @@ def parseOptions():
     optParser.add_option('-l', '--landscan',action='store_true',
                          dest='landscan',default=False,
                          help='Extract Landscan data stored at "{}"'.format(data_path + 'landscan'))
-
+    optParser.add_option('-b', '--brightness',action='store_true',
+                         dest='brightness',default=False,
+                         help='Extract Sky Brightness data stored at "{}"'.format(data_path + 'landscan'))
     opts, args = optParser.parse_args()
 
     return opts
@@ -105,39 +107,23 @@ if __name__ == '__main__':
         # Find what continent each city resides in.
         cont_list = etd.getContinents(gdf, conts)
         cities = pd.DataFrame({'City' : gdf['name_conve'], 'Region' : cont_list})
-        if (opts.worldclim and opts.paleoclim and opts.landscan) or not (opts.worldclim or opts.paleoclim or opts.landscan):
-            # get all data from three datasets
-            start = time.time()
+        if opts.worldclim:
+            # get all cities worldclim data
             df = etd.worldclimCityData(gdf)
             df = pd.merge(cities,df,left_index=True,right_index=True)
             df.to_csv(data_path + 'csv_data/worldclim_cities.csv',index=False)
-            wctime = time.time()
-            print("WorldClim datset to csv complete: " + str(wctime-start) + " seconds\n")
-
+        if opts.paleoclim:
+            # get all cities paleoclim data
             df = etd.paleoclimCityData(gdf)
             df = pd.merge(cities,df,left_index=True,right_index=True)
             df.to_csv(data_path + 'csv_data/paleoclim_cities.csv',index=False)
-            pctime = time.time()
-            print("PaleoClim datset to csv complete: " + str(pctime-wctime) + " seconds\n")
-
+        if opts.landscan:
+            # get all cities landscan data
             df = etd.landscanCityData(gdf)
             df = pd.merge(cities,df,left_index=True,right_index=True)
             df.to_csv(data_path + 'csv_data/landscan_cities.csv',index=False)
-            lstime = time.time()
-            print("Landscan datset to csv complete: " + str(lstime-pctime) + " seconds\n")
-        else:
-            if opts.worldclim:
-                # get all cities worldclim data
-                df = etd.worldclimCityData(gdf)
-                df = pd.merge(cities,df,left_index=True,right_index=True)
-                df.to_csv(data_path + 'csv_data/worldclim_cities.csv',index=False)
-            if opts.paleoclim:
-                # get all cities paleoclim data
-                df = etd.paleoclimCityData(gdf)
-                df = pd.merge(cities,df,left_index=True,right_index=True)
-                df.to_csv(data_path + 'csv_data/paleoclim_cities.csv',index=False)
-            if opts.landscan:
-                # get all cities landscan data
-                df = etd.landscanCityData(gdf)
-                df = pd.merge(cities,df,left_index=True,right_index=True)
-                df.to_csv(data_path + 'csv_data/landscan_cities.csv',index=False)
+        if opts.brightness:
+            # get all cities brightness data
+            df = etd.brightnessData(gdf)
+            df = pd.merge(cities,df,left_index=True,right_index=True)
+            df.to_csv(data_path + 'csv_data/brightness_cities.csv',index=False)
