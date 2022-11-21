@@ -3,7 +3,12 @@ extract_data.py
 
 Reads and extracts data from files (.tif, .asc) and creates .csv dataset of features for each city in the dataset.
 
-Features:
+NOTE: All GeoTiff files should be converted to EPSG:4326 (if not already) format before using these functions properly.
+Use the following command in a commandline prompt to check the current projection:
+    gdalinfo '../../datasets/urban_heat/urban-ssp1_day_sum_mod_3.tif'
+
+To warp the file to EPSG:4326 format:
+    gdalwarp -t_srs EPSG:4326 [source file] [new .tif file]
 
 """
 import os
@@ -618,6 +623,168 @@ def roadData(gdf):
                         city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
         new_time = time.time()
         print("City {} ({}) Brightness data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
+    city_arr_t = city_arr.T
+    city_arr_t[1:] = city_arr_t[1:] / city_arr_t[0]   # Averaging all values in city_arr
+    city_arr = city_arr_t.T
+    return pd.DataFrame(city_arr,columns=cols)
+
+def humanModificationData(gdf):
+    """
+    This script reads in human modification .tif data and aggregates it into the mean value within each city.
+    Args:
+        gdf (GeoDataFrame): represents the list of cities and their geometries.
+    Writes the mean features for each city to csv.
+    """
+    start = time.time()
+    names =  gdf['name_conve'].values
+    poly_list = gdf.geometry
+    # human modification .tif file downloaded from https://figshare.com/articles/dataset/Global_Human_Modification/7283087
+    # and placed within the following path:
+    data_path = '../../datasets/human_modification/'
+    # Read the .tif files, store in a dataframe, store location resolutions
+    tifs, file_names = openTifsInDirectory(data_path)
+    long_res = tifs[0].GetGeoTransform()[1]
+    lat_res = tifs[0].GetGeoTransform()[5]
+    cols = file_names
+    cols.insert(0,'Longitude')
+    cols.insert(0,'Latitude')
+    cols.insert(0,'tif_count')
+    city_arr = np.zeros((len(poly_list),len(cols))) # initializing the array to be returned at the end
+    for i, poly in enumerate(poly_list):
+        old_time = time.time()
+        print("Starting to aggregate human modification data for city {} ({})".format(i,names[i]))
+        if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
+            if not poly.is_valid:
+                # Some cities have boundaries that cross each other which causes the polygons to be invalid.
+                # This poly.buffer(0) makes it so the external bounds don't cross.
+                poly= poly.buffer(0)
+
+            # get only chunk of tif files that could be within city bounds
+            y_bounds = convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), tifs[0])
+            x_bounds = convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), tifs[0])
+            df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
+            df[(df[0] < 0)] = None
+            df = df.dropna()
+            for index, point in df.iterrows():
+                x = point['Longitude']
+                y = point['Latitude']
+                temp_poly = Polygon([(x, y),                    # Top left corner
+                                    (x+long_res, y),            # Top right corner
+                                    (x+long_res, y+lat_res),    # Bottom right corner
+                                    (x, y+lat_res)])            # Bottom left corner
+                if temp_poly.intersects(poly):   # if the data point is inside the city polygon
+                    # The following calculates the percentage of the tif point that intersects the city
+                    weight = temp_poly.intersection(poly).area / temp_poly.area
+                    city_arr[i][0] += weight
+                    # Increments by the intersection percentage weight
+                    city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
+        else:
+            # For cities represented as MultiPolygons, extract each polygon within them and evaluate
+            for p in poly.geoms:
+                if not p.is_valid:
+                    p = p.buffer(0)
+                # get only chunk of tif files that could be within city bounds
+                y_bounds = convertLatToIndex(np.array([p.bounds[1], p.bounds[3]]), tifs[0])
+                x_bounds = convertLongToIndex(np.array([p.bounds[0], p.bounds[2]]), tifs[0])
+                df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
+                df[(df < -3e30)] = None
+                df = df.dropna()
+                for _, point in df.iterrows():
+                    x = point['Longitude']
+                    y = point['Latitude']
+                    temp_poly = Polygon([(x, y),                    # Top left corner
+                                        (x+long_res, y),            # Top right corner
+                                        (x+long_res, y+lat_res),    # Bottom right corner
+                                        (x, y+lat_res)])            # Bottom left corner
+                    if temp_poly.intersects(p):   # if the data point is inside the city polygon
+                        # The following calculates the percentage of the tif point that intersects the city
+                        weight = temp_poly.intersection(p).area / temp_poly.area
+                        city_arr[i][0] += weight
+                        # Increments by the intersection percentage weight
+                        city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
+        new_time = time.time()
+        print("City {} ({}) Human modification data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
+    city_arr_t = city_arr.T
+    city_arr_t[1:] = city_arr_t[1:] / city_arr_t[0]   # Averaging all values in city_arr
+    city_arr = city_arr_t.T
+    return pd.DataFrame(city_arr,columns=cols)
+
+def urbanHeatData(gdf):
+    """
+    This script reads in urban heat .tif data and aggregates it into the mean value within each city.
+    Args:
+        gdf (GeoDataFrame): represents the list of cities and their geometries.
+    Writes the mean features for each city to csv.
+    """
+    start = time.time()
+    names =  gdf['name_conve'].values
+    poly_list = gdf.geometry
+    # urban heat .tif files downloaded from https://figshare.com/articles/dataset/Global_Urban_Heat_Island_Intensification/7897433
+    # and placed within the following path:
+    data_path = '../../datasets/urban_heat/'
+    # Read the .tif files, store in a dataframe, store location resolutions
+    tifs, file_names = openTifsInDirectory(data_path)
+    long_res = tifs[0].GetGeoTransform()[1]
+    lat_res = tifs[0].GetGeoTransform()[5]
+    cols = file_names
+    cols.insert(0,'Longitude')
+    cols.insert(0,'Latitude')
+    cols.insert(0,'tif_count')
+    city_arr = np.zeros((len(poly_list),len(cols))) # initializing the array to be returned at the end
+    for i, poly in enumerate(poly_list):
+        old_time = time.time()
+        print("Starting to aggregate urban heat data for city {} ({})".format(i,names[i]))
+        if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
+            if not poly.is_valid:
+                # Some cities have boundaries that cross each other which causes the polygons to be invalid.
+                # This poly.buffer(0) makes it so the external bounds don't cross.
+                poly= poly.buffer(0)
+
+            # get only chunk of tif files that could be within city bounds
+            y_bounds = convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), tifs[0])
+            x_bounds = convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), tifs[0])
+            df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
+            df[(df[0] < 0)] = None
+            df = df.dropna()
+            for index, point in df.iterrows():
+                x = point['Longitude']
+                y = point['Latitude']
+                temp_poly = Polygon([(x, y),                    # Top left corner
+                                    (x+long_res, y),            # Top right corner
+                                    (x+long_res, y+lat_res),    # Bottom right corner
+                                    (x, y+lat_res)])            # Bottom left corner
+                if temp_poly.intersects(poly):   # if the data point is inside the city polygon
+                    # The following calculates the percentage of the tif point that intersects the city
+                    weight = temp_poly.intersection(poly).area / temp_poly.area
+                    city_arr[i][0] += weight
+                    # Increments by the intersection percentage weight
+                    city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
+        else:
+            # For cities represented as MultiPolygons, extract each polygon within them and evaluate
+            for p in poly.geoms:
+                if not p.is_valid:
+                    p = p.buffer(0)
+                # get only chunk of tif files that could be within city bounds
+                y_bounds = convertLatToIndex(np.array([p.bounds[1], p.bounds[3]]), tifs[0])
+                x_bounds = convertLongToIndex(np.array([p.bounds[0], p.bounds[2]]), tifs[0])
+                df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
+                df[(df < -3e30)] = None
+                df = df.dropna()
+                for index, point in df.iterrows():
+                    x = point['Longitude']
+                    y = point['Latitude']
+                    temp_poly = Polygon([(x, y),                    # Top left corner
+                                        (x+long_res, y),            # Top right corner
+                                        (x+long_res, y+lat_res),    # Bottom right corner
+                                        (x, y+lat_res)])            # Bottom left corner
+                    if temp_poly.intersects(p):   # if the data point is inside the city polygon
+                        # The following calculates the percentage of the tif point that intersects the city
+                        weight = temp_poly.intersection(p).area / temp_poly.area
+                        city_arr[i][0] += weight
+                        # Increments by the intersection percentage weight
+                        city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
+        new_time = time.time()
+        print("City {} ({}) urban heat data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
     city_arr_t = city_arr.T
     city_arr_t[1:] = city_arr_t[1:] / city_arr_t[0]   # Averaging all values in city_arr
     city_arr = city_arr_t.T
