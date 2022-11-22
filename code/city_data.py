@@ -41,6 +41,9 @@ def parseOptions():
     optParser.add_option('-u', '--urban_heat',action='store_true',
                          dest='urban_heat',default=False,
                          help='Extract urban heat data stored at "{}"'.format(data_path + 'roads'))
+    optParser.add_option('-y', '--land_use',action='store_true',
+                         dest='land_use',default=False,
+                         help='Extract land use data stored at "{}"'.format(data_path + 'land_use'))
     opts, args = optParser.parse_args()
 
     return opts
@@ -151,3 +154,8 @@ if __name__ == '__main__':
             df = etd.urbanHeatData(gdf)
             df = pd.merge(cities,df,left_index=True,right_index=True)
             df.to_csv(data_path + 'csv_data/urban_heat_cities.csv',index=False)
+        if opts.land_use:
+            # get all cities land usage data
+            df = etd.landUseData(gdf)
+            df = pd.merge(cities,df,left_index=True,right_index=True)
+            df.to_csv(data_path + 'csv_data/land_use_cities.csv',index=False)
