@@ -44,6 +44,12 @@ def parseOptions():
     optParser.add_option('-y', '--land_use',action='store_true',
                          dest='land_use',default=False,
                          help='Extract land use data stored at "{}"'.format(data_path + 'land_use'))
+    optParser.add_option('-e', '--elevation',action='store_true',
+                         dest='elevation',default=False,
+                         help='Extract elevation data stored at "{}"'.format(data_path + 'elevation'))
+    optParser.add_option('-a', '--area',action='store_true',
+                         dest='area',default=False,
+                         help='Get area data (EPSG:3857, meters-squared) stored in the shapefile')
     opts, args = optParser.parse_args()
 
     return opts
@@ -114,11 +120,11 @@ if __name__ == '__main__':
                 plt.savefig('../figures/{}_landscan_pixels_{}_30s.png'.format(opts.plot_city, year))
         plt.show()
     else:
-        # conts = gpd.read_file('../../continent-boundaries/ne_50m_geography_regions_polys.shp')
-        # conts = conts[conts['SCALERANK'] == 0]
-        # # Find what continent each city resides in.
-        # cont_list = etd.getContinents(gdf, conts)
-        # cities = pd.DataFrame({'City' : gdf['name_conve'], 'Region' : cont_list})
+        conts = gpd.read_file('../../continent-boundaries/ne_50m_geography_regions_polys.shp')
+        conts = conts[conts['SCALERANK'] == 0]
+        # Find what continent each city resides in.
+        cont_list = etd.getContinents(gdf, conts)
+        cities = pd.DataFrame({'City' : gdf['name_conve'], 'Region' : cont_list})
         if opts.worldclim:
             # get all cities worldclim data
             df = etd.worldclimCityData(gdf)
@@ -159,3 +165,12 @@ if __name__ == '__main__':
             df = etd.landUseData(gdf)
             df = pd.merge(cities,df,left_index=True,right_index=True)
             df.to_csv(data_path + 'csv_data/land_use_cities.csv',index=False)
+        if opts.elevation:
+            # get all cities elevation data
+            df = etd.elevationData(gdf)
+            df = pd.merge(cities,df,left_index=True,right_index=True)
+            df.to_csv(data_path + 'csv_data/land_use_cities.csv',index=False)
+        if opts.area:
+            # get all cities areas
+            df = pd.merge(cities,pd.DataFrame({'Area' : gdf.geometry.to_crs(3857).area}),left_index=True,right_index=True)
+            df.to_csv(data_path + 'csv_data/area_cities.csv',index=False)

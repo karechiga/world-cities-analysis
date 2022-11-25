@@ -800,7 +800,7 @@ def landUseData(gdf):
     start = time.time()
     names =  gdf['name_conve'].values
     poly_list = gdf.geometry
-    # road .asc file downloaded from https://www.globio.info/download-grip-dataset and placed within the following path:
+    # land use .asc file downloaded from https://www.pbl.nl/en/image/links/hyde and placed within the following path:
     data_path = '../../datasets/land_use/'
     # Read the .tif files (or .asc), store in a dataframe, store location resolutions
     tifs = []
@@ -870,6 +870,96 @@ def landUseData(gdf):
                         city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
         new_time = time.time()
         print("City {} ({}) land usage data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
+    city_arr_t = city_arr.T
+    city_arr_t[1:] = city_arr_t[1:] / city_arr_t[0]   # Averaging all values in city_arr
+    city_arr = city_arr_t.T
+    return pd.DataFrame(city_arr,columns=cols)
+
+def elevationData(gdf):
+    """
+    This script reads in elevation .tif data and aggregates it into the mean value within each city.
+    Args:
+        gdf (GeoDataFrame): represents the list of cities and their geometries.
+    Writes the mean features for each city to csv.
+    """
+    start = time.time()
+    names =  gdf['name_conve'].values
+    poly_list = gdf.geometry
+    # elevation .tif file downloaded from
+    # https://energydata.info/dataset/world-terrain-elevation-above-sea-level-ele-gis-data-global-solar-atlas
+    # and placed within the following path:
+    data_path = '../../datasets/elevation/'
+    # Read the .tif files, store in a dataframe, store location resolutions
+    tifs, file_names = openTifsInDirectory(data_path)
+    long_res = tifs[0].GetGeoTransform()[1]
+    lat_res = tifs[0].GetGeoTransform()[5]
+    cols = file_names
+    cols.insert(0,'Longitude')
+    cols.insert(0,'Latitude')
+    cols.insert(0,'tif_count')
+    city_arr = np.zeros((len(poly_list),len(cols))) # initializing the array to be returned at the end
+    for i, poly in enumerate(poly_list):
+        old_time = time.time()
+        print("Starting to aggregate elevation data for city {} ({})".format(i,names[i]))
+        if str(type(poly)) == "<class 'shapely.geometry.polygon.Polygon'>": # cities with single polygon bounds
+            if not poly.is_valid:
+                # Some cities have boundaries that cross each other which causes the polygons to be invalid.
+                # This poly.buffer(0) makes it so the external bounds don't cross.
+                poly= poly.buffer(0)
+
+            # get only chunk of tif files that could be within city bounds
+            y_bounds = convertLatToIndex(np.array([poly.bounds[1], poly.bounds[3]]), tifs[0])
+            x_bounds = convertLongToIndex(np.array([poly.bounds[0], poly.bounds[2]]), tifs[0])
+            if any(y_bounds < 0):
+                # This means the city latitude is outside the range of the GeoTiff file.
+                # For this elevation dataset, the lat range is -60 to 60 deg
+                continue
+            df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
+            df[(df < -500)] = None
+            df = df.dropna()
+            for index, point in df.iterrows():
+                x = point['Longitude']
+                y = point['Latitude']
+                temp_poly = Polygon([(x, y),                    # Top left corner
+                                    (x+long_res, y),            # Top right corner
+                                    (x+long_res, y+lat_res),    # Bottom right corner
+                                    (x, y+lat_res)])            # Bottom left corner
+                if temp_poly.intersects(poly):   # if the data point is inside the city polygon
+                    # The following calculates the percentage of the tif point that intersects the city
+                    weight = temp_poly.intersection(poly).area / temp_poly.area
+                    city_arr[i][0] += weight
+                    # Increments by the intersection percentage weight
+                    city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
+        else:
+            # For cities represented as MultiPolygons, extract each polygon within them and evaluate
+            for p in poly.geoms:
+                if not p.is_valid:
+                    p = p.buffer(0)
+                # get only chunk of tif files that could be within city bounds
+                y_bounds = convertLatToIndex(np.array([p.bounds[1], p.bounds[3]]), tifs[0])
+                x_bounds = convertLongToIndex(np.array([p.bounds[0], p.bounds[2]]), tifs[0])
+                if any(y_bounds < 0):
+                    # This means the city latitude is outside the range of the GeoTiff file.
+                    # For this elevation dataset, the lat range is -60 to 60 deg
+                    continue
+                df = tifsToDF(tifs, chunkx=int(abs(x_bounds[1]-x_bounds[0])+1), chunky=int(abs(y_bounds[1]-y_bounds[0])+1), offsetx=int(min(x_bounds)), offsety=int(min(y_bounds)))
+                df[(df < -500)] = None
+                df = df.dropna()
+                for _, point in df.iterrows():
+                    x = point['Longitude']
+                    y = point['Latitude']
+                    temp_poly = Polygon([(x, y),                    # Top left corner
+                                        (x+long_res, y),            # Top right corner
+                                        (x+long_res, y+lat_res),    # Bottom right corner
+                                        (x, y+lat_res)])            # Bottom left corner
+                    if temp_poly.intersects(p):   # if the data point is inside the city polygon
+                        # The following calculates the percentage of the tif point that intersects the city
+                        weight = temp_poly.intersection(p).area / temp_poly.area
+                        city_arr[i][0] += weight
+                        # Increments by the intersection percentage weight
+                        city_arr[i][1:] = np.add(city_arr[i][1:], weight*point.values)
+        new_time = time.time()
+        print("City {} ({}) elevation data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
     city_arr_t = city_arr.T
     city_arr_t[1:] = city_arr_t[1:] / city_arr_t[0]   # Averaging all values in city_arr
     city_arr = city_arr_t.T
