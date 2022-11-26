@@ -885,8 +885,10 @@ def elevationData(gdf):
     start = time.time()
     names =  gdf['name_conve'].values
     poly_list = gdf.geometry
-    # elevation .tif file downloaded from
-    # https://energydata.info/dataset/world-terrain-elevation-above-sea-level-ele-gis-data-global-solar-atlas
+    # elevation .shp file downloaded from
+    # https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-global-multi-resolution-terrain-elevation
+    # Converted to a .tif file using the following command:
+    # gdal_rasterize -a MEAN_ELEV "../../datasets/elevation/GMTED2010_Spatial_Metadata.shp" -tr 0.008333333333333 0.008333333333333 "../../datasets/elevation/elevation.tif"
     # and placed within the following path:
     data_path = '../../datasets/elevation/'
     # Read the .tif files, store in a dataframe, store location resolutions

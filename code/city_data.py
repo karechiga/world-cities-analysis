@@ -169,7 +169,7 @@ if __name__ == '__main__':
             # get all cities elevation data
             df = etd.elevationData(gdf)
             df = pd.merge(cities,df,left_index=True,right_index=True)
-            df.to_csv(data_path + 'csv_data/land_use_cities.csv',index=False)
+            df.to_csv(data_path + 'csv_data/elevation_cities.csv',index=False)
         if opts.area:
             # get all cities areas
             df = pd.merge(cities,pd.DataFrame({'Area' : gdf.geometry.to_crs(3857).area}),left_index=True,right_index=True)
