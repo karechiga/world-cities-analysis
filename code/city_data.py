@@ -47,9 +47,6 @@ def parseOptions():
     optParser.add_option('-e', '--elevation',action='store_true',
                          dest='elevation',default=False,
                          help='Extract elevation data stored at "{}"'.format(data_path + 'elevation'))
-    optParser.add_option('-a', '--area',action='store_true',
-                         dest='area',default=False,
-                         help='Get area data (EPSG:3857, meters-squared) stored in the shapefile')
     opts, args = optParser.parse_args()
 
     return opts
@@ -170,7 +167,3 @@ if __name__ == '__main__':
             df = etd.elevationData(gdf)
             df = pd.merge(cities,df,left_index=True,right_index=True)
             df.to_csv(data_path + 'csv_data/elevation_cities.csv',index=False)
-        if opts.area:
-            # get all cities areas
-            df = pd.merge(cities,pd.DataFrame({'Area' : gdf.geometry.to_crs(3857).area}),left_index=True,right_index=True)
-            df.to_csv(data_path + 'csv_data/area_cities.csv',index=False)

@@ -5,10 +5,10 @@ Reads and extracts data from files (.tif, .asc) and creates .csv dataset of feat
 
 NOTE: All GeoTiff files should be converted to EPSG:4326 (if not already) format before using these functions properly.
 Use the following command in a commandline prompt to check the current projection:
-    gdalinfo '../../datasets/urban_heat/urban-ssp1_day_sum_mod_3.tif'
+    gdalinfo [.tif file]
 
 To warp the file to EPSG:4326 format:
-    gdalwarp -t_srs EPSG:4326 [source file] [new .tif file]
+    gdalwarp -t_srs EPSG:4326 [source .tif file] [new .tif file]
 
 """
 import os
@@ -799,6 +799,7 @@ def landUseData(gdf):
     """
     start = time.time()
     names =  gdf['name_conve'].values
+    areas = np.array(gdf.geometry.to_crs(3857).area / 1000000)    # area in km^2
     poly_list = gdf.geometry
     # land use .asc file downloaded from https://www.pbl.nl/en/image/links/hyde and placed within the following path:
     data_path = '../../datasets/land_use/'
@@ -871,8 +872,10 @@ def landUseData(gdf):
         new_time = time.time()
         print("City {} ({}) land usage data completed in {}sec ({}sec from the start time)".format(i,names[i],new_time-old_time,new_time-start))
     city_arr_t = city_arr.T
-    city_arr_t[1:] = city_arr_t[1:] / city_arr_t[0]   # Averaging all values in city_arr
+    city_arr_t[1:3] = city_arr_t[1:3] / city_arr_t[0]
+    city_arr_t[3:] = city_arr_t[3:] / areas  # Dividing the square footage by each area of each city.
     city_arr = city_arr_t.T
+    df = pd.merge(pd.DataFrame(city_arr,columns=cols), pd.DataFrame({{'Area' : areas}}))
     return pd.DataFrame(city_arr,columns=cols)
 
 def elevationData(gdf):
