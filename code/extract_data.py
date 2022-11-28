@@ -875,8 +875,8 @@ def landUseData(gdf):
     city_arr_t[1:3] = city_arr_t[1:3] / city_arr_t[0]
     city_arr_t[3:] = city_arr_t[3:] / areas  # Dividing the square footage by each area of each city.
     city_arr = city_arr_t.T
-    df = pd.merge(pd.DataFrame(city_arr,columns=cols), pd.DataFrame({{'Area' : areas}}))
-    return pd.DataFrame(city_arr,columns=cols)
+    df = pd.merge(pd.DataFrame(city_arr,columns=cols), pd.DataFrame({'Area' : areas}), left_index=True, right_index=True)
+    return df
 
 def elevationData(gdf):
     """

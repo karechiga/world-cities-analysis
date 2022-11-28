@@ -41,19 +41,23 @@ def cluster(df, features, num_clusters = 5, method = 'kmeans'):
     Returns scikitlearn cluster object (default: uses kmeans)
     """
     X = df[features].values   # returns an array of the feature values
-    X_norm = preprocessing.normalize(X, norm='l2')
+    scaler = preprocessing.StandardScaler().fit(X)
+    X_scaled = scaler.transform(X)
+    # X_norm = preprocessing.normalize(X_scaled, norm='l2', axis=1)
     if method.lower() == 'dbscan':
-        return DBSCAN(eps=0.42, min_samples=350).fit(X_norm)
-    return KMeans(n_clusters=num_clusters).fit(X_norm)
+        return DBSCAN(eps=0.42, min_samples=350).fit(X_scaled)
+    return KMeans(n_clusters=num_clusters).fit(X_scaled)
 
 def pca_2d(df, features):
     """
     Performs Principle Components Analysis (PCA) on the given df[features]
     """
     X = df[features].values   # returns an array of the feature values
-    X_norm = preprocessing.normalize(X, norm='l2')
+    scaler = preprocessing.StandardScaler().fit(X)
+    X_scaled = scaler.transform(X)
+    # X_norm = preprocessing.normalize(X_scaled, norm='l2', axis=1)
     pca = PCA(n_components=2)
-    pc = pca.fit_transform(X_norm)
+    pc = pca.fit_transform(X_scaled)
     return pca, pc
 
 def plot_pca(cities, method='kmeans'):
@@ -153,12 +157,14 @@ def get_baselines(cities, features, num_clusters=5, iters=1000):
         sums = np.array([np.sum(x) for x in k_means.cluster_centers_])
         centers += k_means.cluster_centers_[np.argsort(sums)]
     centers = centers/iters   # average cluster centers
-    normalized = preprocessing.normalize(cities[features].values, norm='l2')
+    scaler = preprocessing.StandardScaler().fit(cities[features].values)
+    X_scaled = scaler.transform(cities[features].values)
+    # normalized = preprocessing.normalize(cities[features].values, norm='l2')
     # Calculate Euclidean distance from average cluster centers
     # Find the minimum Euclidean distance for each city,
     # assign city to that cluster label.
     labels = []
-    for i, n in enumerate(normalized):
+    for i, n in enumerate(X_scaled):
         dist = np.linalg.norm(n - centers[0])
         labels.append(1)
         for j in range(1, num_clusters):
