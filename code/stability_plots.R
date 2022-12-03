@@ -186,9 +186,9 @@ data$Cluster <- factor(data$Cluster)
 plt4 <- ggplot(data, aes(x=Cluster,group=Cluster,y = Stability*100, color=Cluster)) + 
   geom_boxplot(outlier.shape = NA) + geom_jitter(alpha=0.17, width=0.3) +
   xlab("Cluster") + ylab("Stability with Jackknifing (%)") +
-  labs(title=paste("Stability of K-Means Clustered Cities Boxplots (k =", length(unique(data$Cluster)), ")"),) +
-  theme(axis.text = element_text(size = 12), axis.title = element_text(size = 12), plot.title = element_text(size = 15) ) +
-  scale_y_continuous(breaks=seq(0,100,by=20),limits = c(0,100)) + theme_light() + theme(legend.position = "none")
+  scale_y_continuous(breaks=seq(0,100,by=20),limits = c(0,100)) + theme_light() + theme(legend.position = "none") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+  geom_hline(yintercept=50, linetype="dashed", color = "red", size=1)
 
 # saving the plots as pngs in the "figures" folder 
 ggsave(paste("Cluster_Stability_", length(unique(data$Cluster)) ,".png", sep=""), plt4, path = "../figures")
