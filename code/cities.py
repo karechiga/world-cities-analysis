@@ -12,7 +12,7 @@ import optparse
 def parseOptions():
     optParser = optparse.OptionParser()
     optParser.add_option('-s', '--stability',action='store_true',
-                            dest='stability',default=True,
+                            dest='stability',default=False,
                             help='Clusters the cities based on features located at "../csv_data/". '+
                                 'Then calculates the cluster stability by running several iterations of clustering.')
     optParser.add_option('-c', '--cluster',action='store_true',
@@ -21,6 +21,12 @@ def parseOptions():
     optParser.add_option('-p', '--pca',action='store_true',
                             dest='pca',default=False,
                             help='Clusters then plots the cities with their first two Principle Components')
+    optParser.add_option('-t', '--cluster_centers',action='store_true',
+                            dest='cluster_centers',default=False,
+                            help='Calculates clusters and outputs cluster centers.')
+    optParser.add_option('-e', '--elbow',action='store_true',
+                            dest='elbow',default=False,
+                            help='Calculates Within-Cluster Sum of Squares and plots the elbow plot.')
     optParser.add_option('-m', '--method',action='store', type='string',
                         dest='method',default='kmeans',
                         help='Clustering method to perform. Type either "meanshift", "dbscan", or "kmeans". (Default: %default)')
@@ -67,6 +73,14 @@ if __name__ == '__main__':
     features = cities.columns.drop(['City', 'Region', 'Longitude',
                                     'Latitude','tif_count_2000',
                                     'tif_count_2021'])
+    if opts.elbow:
+        # Calculates WSS and plots K-Means Elbow plot
+        # Only works if cluster data has already been output already to CSV
+        fnc.plot_elbow(cities, features)
+    if opts.cluster_centers:
+        # output cluster centers to csv
+        np.random.seed(opts.random_seed)
+        fnc.get_baselines(cities, features, num_clusters=opts.num_clusters, iters=opts.cluster_iters)
     if opts.cluster_plot:
         np.random.seed(opts.random_seed)
         # find baseline clusters to compare against
@@ -98,7 +112,7 @@ if __name__ == '__main__':
         cities['PC1'], cities['PC2'] = components.T
         fnc.plot_pca(cities, opts.method)
         plt.show()
-    if not opts.cluster_plot and not opts.pca:
+    if opts.stability:
         np.random.seed(opts.random_seed)
         print("Analyzing the stability of the calculated baseline clusters...")
         fnc.stability_analysis(cities, features, num_clusters=opts.num_clusters, c_iters=opts.cluster_iters,

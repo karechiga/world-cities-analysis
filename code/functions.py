@@ -8,6 +8,7 @@ from sklearn import preprocessing
 from sklearn.decomposition import PCA
 from matplotlib import pyplot as plt
 import numpy as np
+import re
 
 def get_cities(path):
     """
@@ -45,7 +46,7 @@ def cluster(df, features, num_clusters = 5, method = 'kmeans'):
     X_scaled = scaler.transform(X)
     # X_norm = preprocessing.normalize(X_scaled, norm='l2', axis=1)
     if method.lower() == 'dbscan':
-        return DBSCAN(eps=0.42, min_samples=350).fit(X_scaled)
+        return DBSCAN(eps=2.2, min_samples=10).fit(X_scaled)
     return KMeans(n_clusters=num_clusters).fit(X_scaled)
 
 def pca_2d(df, features):
@@ -157,6 +158,8 @@ def get_baselines(cities, features, num_clusters=5, iters=1000):
         sums = np.array([np.sum(x) for x in k_means.cluster_centers_])
         centers += k_means.cluster_centers_[np.argsort(sums)]
     centers = centers/iters   # average cluster centers
+    df = pd.DataFrame(centers, columns=features)
+    df.to_csv('../cluster_data/centroids_{}.csv'.format(num_clusters),index=False)
     scaler = preprocessing.StandardScaler().fit(cities[features].values)
     X_scaled = scaler.transform(cities[features].values)
     # normalized = preprocessing.normalize(cities[features].values, norm='l2')
@@ -238,4 +241,64 @@ def stability_analysis(cities, features, num_clusters=5, c_iters=10, b_stab_iter
     # Saving to CSV
     # cities[['City','Cluster','Baseline_Stability','Stability']].to_csv('../cluster_data/cluster_stabilities_{}.csv'.format(num_clusters),index=False)
     cities.to_csv('../cluster_data/cities_{}.csv'.format(num_clusters),index=False)
+    return
+
+def sum_of_squares(centroid, vectors):
+    # sum of squared Euclidean Distances between vectors
+    ss = 0
+    for v in vectors:
+        ss += np.linalg.norm(centroid - v)**2
+    return ss
+
+def plot_elbow(df, features):
+    in_path = '../cluster_data/'
+    files = os.listdir(in_path)
+    # get list of csv files with naming convention "cities_[0-9]+"
+    # get list of csv files with naming convention "centroids_[0-9]+"
+    city_files = []
+    cen_files = []
+    num_clusters = []
+    for f in files:
+        city = re.search(r"^cities_\d+\.csv$", f)
+        cen = re.search(r"^centroids_\d+\.csv$", f)
+        if city is not None:
+            city_files.append(city.group())
+        elif cen is not None:
+            cen_files.append(cen.group())
+            num_clusters.append(int(re.search(r"\d+", f).group()))
+
+    if len(city_files) < 3 or len(cen_files) < 3:
+        print("Need to generate more csv data before plotting elbow plot.\n"+
+              "Run 'python cities.py -s -k 2', 'python cities.py -s -k 3' and " +
+              "so on to generate csv data for different K-Means number of centers.")
+        return
+    # sort the file names in numeric order
+    city_files.sort(key=lambda x : list(map(int, re.findall(r'\d+', x)))[0])
+    cen_files.sort(key=lambda x : list(map(int, re.findall(r'\d+', x)))[0])
+    num_clusters.sort()
+    scaler = preprocessing.StandardScaler().fit(df[features].values)
+    scaled = pd.DataFrame(scaler.transform(df[features].values), columns=features)  # Scaled values to compare against centroids
+    # Calculate within cluster Sum of Squares
+    elb = np.zeros(shape=(len(num_clusters)))
+    for i, clusters in enumerate(num_clusters):
+        cities = pd.read_csv(in_path + 'cities_' + str(clusters) + '.csv')
+        scaled['Cluster'] = cities['Cluster']
+        centroids = pd.read_csv(in_path + 'centroids_' + str(clusters) + '.csv')
+        for k, c in centroids.iterrows():
+            elb[i] += sum_of_squares(c.values.T, scaled[scaled['Cluster'] == k+1].drop('Cluster',axis=1).values)
+        elb[i] = elb[i] / clusters
+    plt.figure()
+    elb = elb / 1000
+    elbow = plt.subplot(111)
+    elbow.plot(num_clusters, elb, '-bo')
+    x = np.array([0, 20])
+    y = (elb[4] - elb[3]) * (x - 6) + elb[4]
+    elbow.plot(x, y, '--r')
+    elbow.set_xlabel('Number of Clusters')
+    elbow.set_ylabel('Average Within Cluster Sum of Squares (thousands)')
+    elbow.set_xticks(num_clusters)
+    elbow.set_xlim([1.5, 20.5])
+    elbow.set_ylim([0, 100])
+    plt.savefig('../figures/elbow_plot.png')
+    plt.show()
     return
