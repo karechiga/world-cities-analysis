@@ -108,9 +108,9 @@ if __name__ == '__main__':
         cities['Cluster'] = labels
         pca, components = fnc.pca_2d(cities, features)
         print('Explained variance - PC1: {}, PC2: {}.'.format(
-                pca.explained_variance_[0],pca.explained_variance_[1]))
+                pca.explained_variance_ratio_[0],pca.explained_variance_ratio_[1]))
         cities['PC1'], cities['PC2'] = components.T
-        fnc.plot_pca(cities, opts.method)
+        fnc.plot_pca(cities, pca, opts.method)
         plt.show()
     if opts.stability:
         np.random.seed(opts.random_seed)

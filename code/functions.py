@@ -56,24 +56,43 @@ def pca_2d(df, features):
     X = df[features].values   # returns an array of the feature values
     scaler = preprocessing.StandardScaler().fit(X)
     X_scaled = scaler.transform(X)
-    # X_norm = preprocessing.normalize(X_scaled, norm='l2', axis=1)
     pca = PCA(n_components=2)
     pc = pca.fit_transform(X_scaled)
     return pca, pc
 
-def plot_pca(cities, method='kmeans'):
+def annotate_pca(ax, cities, ha="left", xytext=(3,0)):
+    for i, city in cities.iterrows():
+        plt.annotate(city['City'], # this is the text
+                    (city['PC1'], city['PC2']), # these are the coordinates to position the label
+                    textcoords="offset points", # how to position the text
+                    xytext=xytext, # distance from text to points (x,y)
+                    ha=ha) # horizontal alignment can be left, right or center
+
+def plot_pca(cities, pca, method='kmeans'):
     """
     Input: "cities" dataframe should contain columns for "PC1" and "PC2".
             Optionally, should also include cluster column as "Cluster".
+            "method" can either be dbscan or kmeans
+            "pca" should be a scikit-learn 'PCA' object
     """
     unique, counts = np.unique(cities['Cluster'].values, return_counts=True)
+    if len(unique) == 6:
+        # For 6 clusters plot, set the five colors.
+        colors = ['gold', 'limegreen', 'darkorange', 'dodgerblue', 'red', 'black']
+    else:
+        colors = ['']*20
     plt.figure()
     ax = plt.subplot(111)
     points = []
     for k in range(len(unique)):
         df = cities[cities['Cluster'] == k+1]
-        points.append(ax.plot(df['PC1'], df['PC2'],
-                        '.',markersize=1.5, alpha=0.7,
+        if len(unique) == 6:
+            points.append(ax.plot(df['PC1'], df['PC2'],
+                        '.', color = colors[k], markersize=5, alpha=0.7,
+                        label='Cluster {}'.format(unique[k])))
+        else:
+            points.append(ax.plot(df['PC1'], df['PC2'],
+                        '.', markersize=5, alpha=0.7,
                         label='Cluster {}'.format(unique[k])))
 
     box = ax.get_position()
@@ -81,24 +100,30 @@ def plot_pca(cities, method='kmeans'):
                     box.width, box.height * 0.9])
     ax.legend(handles=[points[k][0] for k in range(len(unique))],loc='upper center', bbox_to_anchor=(0.5, 1.15),
             ncol=3, fancybox=True, shadow=True, markerscale=5)
-    ax.set_title('2D Principle Components of {} City Clusters ({})'.
-                 format(len(unique), method.upper()), x=0.5, y=1.13)
-    ax.set_xlabel('Principle Component 1')
-    ax.set_ylabel('Principle Component 2')
-    # plt.xlim([-180, 180])
-    # plt.ylim([-90, 90])
+    # ax.set_title('2D Principle Components of {} City Clusters ({})'.
+    #              format(len(unique), method.upper()), x=0.5, y=1.13)
+    ax.set_xlabel('Principle Component 1 ({}%)'.
+                  format(np.round(pca.explained_variance_ratio_[0]*100, 1)))
+    ax.set_ylabel('Principle Component 2 ({}%)'.
+                  format(np.round(pca.explained_variance_ratio_[1]*100, 1)))
+    ax.set_ylim([-20,25])
+    ax.set_xlim([-20,25])
+    right_cities = ['Beijing', 'New Delhi', 'Dawei', 'Quibdo']
+    left_cities = ['Taloyoak', 'Yakutat']
+    annotate_pca(ax, cities[(cities['City'].isin(right_cities))])
+    annotate_pca(ax, cities[(cities['City'].isin(left_cities))], ha='right', xytext=(-3,-5))
     plt.savefig('../figures/2d_PCA_{}_{}.png'.format(method, len(unique)))
 
 def plot_clusters(cities, method='kmeans'):
     unique, counts = np.unique(cities['Cluster'].values, return_counts=True)
-    if len(unique) == 5:
-        # For 5 clusters plot, set the five colors.
-        colors = ['salmon', 'gold', 'limegreen', 'cornflowerblue', 'mediumorchid']
+    if len(unique) == 6:
+        # For 6 clusters plot, set the five colors.
+        colors = ['gold', 'limegreen', 'darkorange', 'dodgerblue', 'red', 'black']
     else:
         colors = ['']*20
     plt.figure()
     bar_ax = plt.subplot(111)
-    if len(unique) == 5:
+    if len(unique) == 6:
         bar_ax.bar(unique,counts,color=colors)  # Plots the number of occurrences for each cluster
     else:
         bar_ax.bar(unique,counts)
@@ -106,19 +131,17 @@ def plot_clusters(cities, method='kmeans'):
     bar_ax.set_xlabel('Cluster Numbers')
     bar_ax.set_ylabel('Counts')
     plt.savefig('../figures/{}_{}_city_clusters_counts.png'.format(method.upper(), len(unique)))
-
-    # plt.show()
     plt.figure()
     ax = plt.subplot(111)
     points = []
     for k in range(len(unique)):
         df = cities[cities['Cluster'] == k+1]
-        if len(unique) != 5:
+        if len(unique) != 6:
             points.append(ax.plot(df['Longitude'], df['Latitude'],
-                                '.',markersize=1.5, alpha=0.7,label='Cluster {}'.format(unique[k])))
+                                '.',markersize=2.5, alpha=0.5,label='Cluster {}'.format(unique[k])))
         else:
             points.append(ax.plot(df['Longitude'], df['Latitude'],
-                                '.',color=colors[k],markersize=1.5, alpha=0.7,label='Cluster {}'.format(unique[k])))
+                                '.',color=colors[k],markersize=2.5, alpha=0.5,label='Cluster {}'.format(unique[k])))
 
     box = ax.get_position()
     ax.set_position([box.x0, box.y0,
