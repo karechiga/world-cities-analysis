@@ -160,7 +160,8 @@ def get_baselines(cities, features, num_clusters=5, iters=1000):
     Calculates baseline clusters for each city by running k-means
     clustering "iters" (default 1000) number of times. The cluster centers
     are averaged from each iteration, then cities are labeled based on the
-    minimum Euclidean distance to each cluster.
+    minimum Euclidean distance to each cluster. Cluster centers are saved to
+    CSV file.
 
     Args:
         cities (DataFrame): DataFrame of the cities and its features.
@@ -273,7 +274,43 @@ def sum_of_squares(centroid, vectors):
         ss += np.linalg.norm(centroid - v)**2
     return ss
 
-def plot_elbow(df, features):
+def plot_dists_and_neighbors(cities, centroids, scaled):
+    # Returns average within cluster sum of squares for each cluster
+    # Returns average neighboring cluster sum of square distances
+    # And returns the neighboring clusters for each city
+    wcss = np.zeros(shape=(len(centroids),))    # within cluster sum of squares
+    ncss = np.zeros(shape=(len(centroids),))    # neighbor cluster sum of squares
+    neighbors = np.zeros(shape=(len(scaled)),)  # neighboring clusters for each city
+    city_dists = np.zeros(shape=(len(scaled), len(scaled)))  # Distances of each city from each city
+    cent_dists = np.zeros(shape=(len(centroids),len(centroids)))
+    for i, row in scaled.drop('Cluster',axis=1).iterrows():
+        city_dists[i, :] = np.sqrt(np.sum((row.values - scaled.drop('Cluster',axis=1).values) ** 2, axis=1))
+        city_dists[i, i:] = None
+    for j, c in centroids.iterrows():
+        cent_dists[j, :] = np.sqrt(np.sum((c.values - centroids.values) ** 2, axis=1))
+        cent_dists[j, j:] = None
+        wcss[j] += sum_of_squares(c.values.T, scaled[scaled['Cluster'] == j+1].drop('Cluster',axis=1).values)
+        wcss[j] = wcss[j] / len(scaled[scaled['Cluster'] == j+1])
+        for i, row in scaled[scaled['Cluster'] == j+1].iterrows():
+            min_dist = 99999999999
+            for k, c2 in centroids.iterrows():
+                if j == k:
+                    continue
+                d = np.linalg.norm(c2.values - row.drop('Cluster').values)
+                if d < min_dist:
+                    min_dist = d
+                    neighbors[i] = k+1
+            ncss[j] += min_dist**2
+        ncss[j] = ncss[j] / len(scaled[scaled['Cluster'] == j+1])
+    pd.merge(cities[['City', 'Region', 'Cluster']], pd.DataFrame(city_dists, columns=cities['City']),
+             left_index=True,right_index=True).to_csv('../cluster_data/dists.csv',index=False)
+    pd.DataFrame(cent_dists, index=np.sort(cities['Cluster'].unique()), columns=np.sort(cities['Cluster'].unique())
+                 ).to_csv('../cluster_data/centroid_dists.csv',index=True)
+    pd.DataFrame(np.vstack((wcss, ncss)).T, index=np.sort(cities['Cluster'].unique()),
+                 columns=['Within Cluster', 'Neighbor Cluster']).to_csv('../cluster_data/sum_of_square_dists.csv', index=True)
+    return
+
+def elbow_method(df, features, k = -1):
     in_path = '../cluster_data/'
     files = os.listdir(in_path)
     # get list of csv files with naming convention "cities_[0-9]+"
@@ -307,8 +344,10 @@ def plot_elbow(df, features):
         cities = pd.read_csv(in_path + 'cities_' + str(clusters) + '.csv')
         scaled['Cluster'] = cities['Cluster']
         centroids = pd.read_csv(in_path + 'centroids_' + str(clusters) + '.csv')
-        for k, c in centroids.iterrows():
-            elb[i] += sum_of_squares(c.values.T, scaled[scaled['Cluster'] == k+1].drop('Cluster',axis=1).values)
+        if clusters == k:
+            plot_dists_and_neighbors(cities, centroids, scaled)
+        for j, c in centroids.iterrows():
+            elb[i] += sum_of_squares(c.values.T, scaled[scaled['Cluster'] == j+1].drop('Cluster',axis=1).values)
         elb[i] = elb[i] / clusters
     plt.figure()
     elb = elb / 1000

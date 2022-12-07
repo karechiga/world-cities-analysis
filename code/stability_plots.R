@@ -188,7 +188,7 @@ plt4 <- ggplot(data, aes(x=Cluster,group=Cluster,y = Stability*100, color=Cluste
   xlab("Cluster") + ylab("Stability with Jackknifing (%)") +
   scale_y_continuous(breaks=seq(0,100,by=20),limits = c(0,100)) + theme_light() + theme(legend.position = "none") +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
-  geom_hline(yintercept=50, linetype="dashed", color = "red", size=1)
+  geom_hline(yintercept=avg_per[10,4], linetype="dashed", color = "red", size=1)
 
 # saving the plots as pngs in the "figures" folder 
 ggsave(paste("Cluster_Stability_", length(unique(data$Cluster)) ,".png", sep=""), plt4, path = "../figures")

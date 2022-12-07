@@ -21,20 +21,15 @@ def parseOptions():
     optParser.add_option('-p', '--pca',action='store_true',
                             dest='pca',default=False,
                             help='Clusters then plots the cities with their first two Principle Components')
-    optParser.add_option('-t', '--cluster_centers',action='store_true',
-                            dest='cluster_centers',default=False,
-                            help='Calculates clusters and outputs cluster centers.')
     optParser.add_option('-e', '--elbow',action='store_true',
                             dest='elbow',default=False,
-                            help='Calculates Within-Cluster Sum of Squares and plots the elbow plot.')
+                            help='Uses centroid CSV files for different k values, and Euclidean calculates distances between cities and clusters.\n'+
+                                'Plots an Elbow plot and generates a csv for cluster distances and city distances from each other.')
     optParser.add_option('-m', '--method',action='store', type='string',
                         dest='method',default='kmeans',
                         help='Clustering method to perform. Type either "meanshift", "dbscan", or "kmeans". (Default: %default)')
-    # optParser.add_option('-p', '--pca',action='store_true',
-    #                         dest='pca',default=False,
-    #                         help='Performs Principal Components Analysis (PCA).')
     optParser.add_option('-k', '--num_clusters',action='store',
-                            metavar="K", type='int',dest='num_clusters',default=5,
+                            metavar="K", type='int',dest='num_clusters',default=6,
                             help='Number of clusters to partition the data in k-means clustering. Default: %default' )
     optParser.add_option('-i', '--cluster_iters',action='store',
                             metavar="C", type='int',dest='cluster_iters',default=10,
@@ -54,8 +49,6 @@ def parseOptions():
     optParser.add_option('-r', '--random_seed',action='store',
                             metavar="R", type='int',dest='random_seed',default=10,
                             help='Random seed initialization. Default: %default' )
-    # num_clusters=5, c_iters=10, b_stab_iters=100, stab_iters=100,
-    #                  random_seed=20, drop_feat_perc=10, drop_rows_perc=10
 
     opts, args = optParser.parse_args()
 
@@ -76,11 +69,7 @@ if __name__ == '__main__':
     if opts.elbow:
         # Calculates WSS and plots K-Means Elbow plot
         # Only works if cluster data has already been output already to CSV
-        fnc.plot_elbow(cities, features)
-    if opts.cluster_centers:
-        # output cluster centers to csv
-        np.random.seed(opts.random_seed)
-        fnc.get_baselines(cities, features, num_clusters=opts.num_clusters, iters=opts.cluster_iters)
+        fnc.elbow_method(cities, features, k=opts.num_clusters)
     if opts.cluster_plot:
         np.random.seed(opts.random_seed)
         # find baseline clusters to compare against
