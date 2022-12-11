@@ -1,4 +1,4 @@
-City,Region,tif_count_2000,tif_count_2021,Latitude,Longitude,pop_2000,pop_2021,pop_change
+City,Region,tif_count_2000,tif_count_2021,Latitude,Longitude,2000 Population,2021 Population,Population Change
 Aalborg,EUROPE,157,161,57.04017296,9.929481132,126259.9999,112055.9999,-14204
 Aarhus,EUROPE,273,273,56.16968864,10.1760989,187375.9999,283000.9999,95624.99993
 Aba,AFRICA,327,327,5.088379205,7.334607543,667082.9989,1140027,472944.0007
