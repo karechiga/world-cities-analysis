@@ -18,6 +18,9 @@ def parseOptions():
     optParser.add_option('-c', '--cluster',action='store_true',
                             dest='cluster_plot',default=False,
                             help='Clusters city data located at "../csv_data/", then plots the clusters in a geographic representation.')
+    optParser.add_option('-t', '--centers_to_csv',action='store_true',
+                            dest='centers_to_csv',default=False,
+                            help='Saves calculated cluster centroids to CSV file (use with python cities.py -c or -p).')
     optParser.add_option('-p', '--pca',action='store_true',
                             dest='pca',default=False,
                             help='Clusters then plots the cities with their first two Principle Components')
@@ -79,7 +82,8 @@ if __name__ == '__main__':
             labels = clusters.labels_ + 2
         else:
             # Default is kmeans
-            labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters, iters=opts.cluster_iters)
+            labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters,
+                                       iters=opts.cluster_iters, centers_to_csv=opts.centers_to_csv)
         # Plotting the clusters:
         cities['Cluster'] = labels
         fnc.plot_clusters(cities, opts.method)
@@ -93,13 +97,14 @@ if __name__ == '__main__':
             labels = clusters.labels_ + 2
         else:
             # Default is kmeans
-            labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters, iters=opts.cluster_iters)
+            labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters,
+                                       iters=opts.cluster_iters,centers_to_csv=opts.centers_to_csv)
         cities['Cluster'] = labels
         pca, components = fnc.pca_2d(cities, features)
         print('Explained variance - PC1: {}, PC2: {}.'.format(
                 pca.explained_variance_ratio_[0],pca.explained_variance_ratio_[1]))
         cities['PC1'], cities['PC2'] = components.T
-        fnc.plot_pca(cities, pca, opts.method)
+        fnc.plot_pca(cities, features, pca, opts.method)
         plt.show()
     if opts.stability:
         np.random.seed(opts.random_seed)

@@ -180,8 +180,8 @@ ggsave("stability_per_cluster_points.png", plt3, path = "../figures")
 
 # read in the dataset
 data <- read.csv("../cluster_data/cities_6.csv")
+data$Cluster <- chartr("123456789", "ABCDEFGHI", data$Cluster)
 data$Cluster <- factor(data$Cluster)
-
 # Creates a boxplot
 plt4 <- ggplot(data, aes(x=Cluster,group=Cluster,y = Stability*100, color=Cluster)) + 
   geom_boxplot(outlier.shape = NA) + geom_jitter(alpha=0.17, width=0.3) +
