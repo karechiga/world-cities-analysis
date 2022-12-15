@@ -47,6 +47,9 @@ def parseOptions():
     optParser.add_option('-e', '--elevation',action='store_true',
                          dest='elevation',default=False,
                          help='Extract elevation data stored at "{}"'.format(data_path + 'elevation'))
+    optParser.add_option('-g', '--geodist',action='store_true',
+                         dest='geodist',default=False,
+                         help='Output geographical distances between cities.')
     opts, args = optParser.parse_args()
 
     return opts
@@ -167,3 +170,13 @@ if __name__ == '__main__':
             df = etd.elevationData(gdf)
             df = pd.merge(cities,df,left_index=True,right_index=True)
             df.to_csv(data_path + 'csv_data/elevation_cities.csv',index=False)
+        if opts.geodist:
+            # get geographical distances between cities
+            cen = gdf.geometry.to_crs(3857).centroid    # city centroids
+            df = pd.DataFrame((cen.x , cen.y)).T
+            city_dists = np.zeros(shape=(len(cen), len(cen)))  # Distances of each city from each city
+            for i, row in df.iterrows():
+                city_dists[i, :] = np.sqrt(np.sum((row.values - df.values) ** 2, axis=1))
+            city_dists = city_dists / 1000  # distances in km
+            pd.merge(cities[['City', 'Region']], pd.DataFrame(city_dists, columns=cities['City']),
+                    left_index=True,right_index=True).to_csv('../cluster_data/geo_dists.csv',index=False)

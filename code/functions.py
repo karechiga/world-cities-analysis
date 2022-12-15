@@ -126,6 +126,12 @@ def plot_pca(cities, features, pca, method='kmeans'):
     leg = ax.get_legend()
     for i in range(len(features)): leg.legendHandles[i].set_color('White')
     plt.savefig('../figures/2d_PCA_{}_{}.png'.format(method, len(unique)))
+    # Find PCA city dists matrix
+    city_dists = np.zeros(shape=(len(cities), len(cities)))  # Distances of each city from each city
+    for i, row in cities[['PC1','PC2']].iterrows():
+        city_dists[i, :] = np.sqrt(np.sum((row.values - cities[['PC1','PC2']].values) ** 2, axis=1))
+    pd.merge(cities[['City', 'Region', 'Cluster']], pd.DataFrame(city_dists, columns=cities['City']),
+             left_index=True,right_index=True).to_csv('../cluster_data/pca_dists.csv',index=False)
 
 def plot_clusters(cities, method='kmeans'):
     unique, counts = np.unique(cities['Cluster'].values, return_counts=True)
@@ -319,7 +325,7 @@ def plot_dists_and_neighbors(cities, centroids, scaled):
         ncss[j] = ncss[j] / len(scaled[scaled['Cluster'] == j+1])
         count[j] = len(scaled[scaled['Cluster'] == j+1])
     pd.merge(cities[['City', 'Region', 'Cluster']], pd.DataFrame(city_dists, columns=cities['City']),
-             left_index=True,right_index=True).to_csv('../cluster_data/dists.csv',index=False)
+             left_index=True,right_index=True).to_csv('../cluster_data/feature_dists.csv',index=False)
     pd.DataFrame(cent_dists, index=np.sort(cities['Cluster'].unique()), columns=np.sort(cities['Cluster'].unique())
                  ).to_csv('../cluster_data/centroid_dists.csv',index=True)
     pd.DataFrame(np.vstack((count, wcss, ncss)).T, index=np.sort(cities['Cluster'].unique()),
