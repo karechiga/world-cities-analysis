@@ -1,8 +1,5 @@
 """ city_data.py
-City data to extracted from the following sources and saved in csv files:
-    https://worldclim.org/ (for each city, extract the mean BioX across all cells)
-    http://www.paleoclim.org/ (for each city, extract the mean BioX across all cells)
-    https://landscan.ornl.gov/ (for each city, first, extract the total value (sum) across all cells in 2000 and 2021; second, estimate the absolute change
+City data to extracted into csv files.
 """
 import extract_data as etd
 import pandas as pd
@@ -49,7 +46,7 @@ def parseOptions():
                          help='Extract elevation data stored at "{}"'.format(data_path + 'elevation'))
     optParser.add_option('-g', '--geodist',action='store_true',
                          dest='geodist',default=False,
-                         help='Output geographical distances between cities.')
+                         help='Output geographical distances between cities as a .csv contingency table.')
     opts, args = optParser.parse_args()
 
     return opts

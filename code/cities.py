@@ -28,9 +28,6 @@ def parseOptions():
                             dest='elbow',default=False,
                             help='Uses centroid CSV files for different k values, and Euclidean calculates distances between cities and clusters.\n'+
                                 'Plots an Elbow plot and generates a csv for cluster distances and city distances from each other.')
-    optParser.add_option('-m', '--method',action='store', type='string',
-                        dest='method',default='kmeans',
-                        help='Clustering method to perform. Type either "meanshift", "dbscan", or "kmeans". (Default: %default)')
     optParser.add_option('-k', '--num_clusters',action='store',
                             metavar="K", type='int',dest='num_clusters',default=6,
                             help='Number of clusters to partition the data in k-means clustering. Default: %default' )
@@ -77,34 +74,24 @@ if __name__ == '__main__':
         np.random.seed(opts.random_seed)
         # find baseline clusters to compare against
         print("Clustering cities...")
-        if opts.method.lower() == 'dbscan':
-            clusters = fnc.cluster(cities, features, method='dbscan')
-            labels = clusters.labels_ + 2
-        else:
-            # Default is kmeans
-            labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters,
-                                       iters=opts.cluster_iters, centers_to_csv=opts.centers_to_csv)
+        labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters,
+                                    iters=opts.cluster_iters, centers_to_csv=opts.centers_to_csv)
         # Plotting the clusters:
         cities['Cluster'] = labels
-        fnc.plot_clusters(cities, opts.method)
+        fnc.plot_clusters(cities)
         plt.show()
     if opts.pca:
         # Principle Components plot
         np.random.seed(opts.random_seed)
         print("Clustering cities, then performing PCA.")
-        if opts.method.lower() == 'dbscan':
-            clusters = fnc.cluster(cities, features, method='dbscan')
-            labels = clusters.labels_ + 2
-        else:
-            # Default is kmeans
-            labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters,
-                                       iters=opts.cluster_iters,centers_to_csv=opts.centers_to_csv)
+        labels = fnc.get_baselines(cities, features, num_clusters=opts.num_clusters,
+                                    iters=opts.cluster_iters,centers_to_csv=opts.centers_to_csv)
         cities['Cluster'] = labels
         pca, components = fnc.pca_2d(cities, features)
         print('Explained variance - PC1: {}, PC2: {}.'.format(
                 pca.explained_variance_ratio_[0],pca.explained_variance_ratio_[1]))
         cities['PC1'], cities['PC2'] = components.T
-        fnc.plot_pca(cities, features, pca, opts.method)
+        fnc.plot_pca(cities, features, pca)
         plt.show()
     if opts.stability:
         np.random.seed(opts.random_seed)
