@@ -147,8 +147,8 @@ def plot_clusters(cities, method='kmeans'):
     else:
         bar_ax.bar(unique,counts)
     bar_ax.set_title('B',)
-    bar_ax.set_xlabel('Cluster Numbers')
-    bar_ax.set_ylabel('Counts')
+    bar_ax.set_xlabel('Clusters')
+    bar_ax.set_ylabel('Number of Cities')
     plt.savefig('../figures/{}_{}_city_clusters_counts.png'.format(method.upper(), len(unique)))
     plt.figure()
     ax = plt.subplot(111)
@@ -173,6 +173,23 @@ def plot_clusters(cities, method='kmeans'):
     plt.xlim([-180, 180])
     plt.ylim([-90, 90])
     plt.savefig('../figures/{}_{}_city_clusters.png'.format(len(unique), method))
+
+    plt.figure()
+    ax = plt.subplot(111)
+    x = []
+    labels = []
+    for k in range(len(unique)):
+        x.append([lat for lat in cities['Latitude'][cities['Cluster'] == chr(k+65)]])
+        labels.append('Cluster ' + chr(k+65))
+    ax.hist(x, bins=np.arange(-80, 80.1, step=20), density=False, stacked=True, color=colors, label=labels, orientation='horizontal')
+    ax.legend(loc='lower right', ncol=2, markerscale=5)
+    ax.set_title('C', x=0.5, y=1)
+    ax.set_ylabel('Latitude (Degrees)')
+    ax.set_xlabel('Number of Cities')
+    ax.set_ylim([-85,85])
+    ax.set_yticks(np.arange(-80, 80.1, step=20))
+    plt.savefig('../figures/{}_{}_cluster_histogram.png'.format(len(unique), method))
+
 
 def get_baselines(cities, features, num_clusters=5, iters=1000, centers_to_csv = False):
     """
