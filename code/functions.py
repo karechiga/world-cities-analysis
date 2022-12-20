@@ -320,13 +320,18 @@ def plot_dists_and_neighbors(cities, centroids, scaled):
     count = np.zeros(shape=(len(centroids),))    # number of each cluster
     neighbors = np.zeros(shape=(len(scaled)),)  # neighboring clusters for each city
     city_dists = np.zeros(shape=(len(scaled), len(scaled)))  # Distances of each city from each city
-    cent_dists = np.zeros(shape=(len(centroids),len(centroids)))
+    cent_dists = np.zeros(shape=(len(centroids),len(centroids))) # Distances of centroids from eachother
+    region_clusters = np.zeros(shape=(len(np.unique(cities['Cluster'])),
+                                      len(np.unique(cities['Region']))))  # table of regions vs cluster
+    regs = dict.fromkeys(np.sort(np.unique(cities['Region'])), 0)
+    for i, r in enumerate(np.unique(cities['Region'])): regs[r] = i
+    clust = dict.fromkeys(np.sort(np.unique(cities['Cluster'])), 0)
+    for i, c in enumerate(np.unique(cities['Cluster'])): clust[c] = i
     for i, row in scaled.drop('Cluster',axis=1).iterrows():
         city_dists[i, :] = np.sqrt(np.sum((row.values - scaled.drop('Cluster',axis=1).values) ** 2, axis=1))
-        # city_dists[i, i:] = None
+        region_clusters[clust[cities['Cluster'].iloc[i]], regs[cities['Region'].iloc[i]]] += 1
     for j, c in centroids.iterrows():
         cent_dists[j, :] = np.sqrt(np.sum((c.values - centroids.values) ** 2, axis=1))
-        # cent_dists[j, j:] = None
         wcss[j] += sum_of_squares(c.values.T, scaled[scaled['Cluster'] == j+1].drop('Cluster',axis=1).values)
         wcss[j] = wcss[j] / len(scaled[scaled['Cluster'] == j+1])
         for i, row in scaled[scaled['Cluster'] == j+1].iterrows():
@@ -347,6 +352,8 @@ def plot_dists_and_neighbors(cities, centroids, scaled):
                  ).to_csv('../cluster_data/centroid_dists.csv',index=True)
     pd.DataFrame(np.vstack((count, wcss, ncss)).T, index=np.sort(cities['Cluster'].unique()),
                  columns=['Count', 'Within Cluster', 'Neighbor Cluster']).to_csv('../cluster_data/sum_of_square_dists.csv', index=True)
+    pd.DataFrame(region_clusters, index=np.sort(cities['Cluster'].unique()), columns=np.sort(cities['Region'].unique())
+                 ).to_csv('../cluster_data/region_clusters.csv',index=True)
     return
 
 def elbow_method(df, features, k = -1):
